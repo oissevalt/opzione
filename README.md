@@ -1,6 +1,10 @@
 # Opzione
 
-_Opzione_ (Italian "option") is a Go library for optionals, with tracking of nested pointers.
+_Opzione_ (Italian "option") is a Go library for optionals, with tracking of nested pointers. You can add it to your project using `go get`:
+
+```shell
+go get github.com/oissevalt/opzione
+```
 
 The package provides two basic optional types (containers), `Simple` and `Chained`.
 
@@ -59,7 +63,7 @@ func main() {
 }
 ```
 
-Note that the use of reflection can introduce additional operation time and memory usage, but best effort has been made to minimize such impact. According to benchmark (`opzione_test.go`), a sequence of operation on nested pointers took less than 400ns on average.
+Note that the use of reflection can introduce additional operation time and memory usage, but best effort has been made to minimize such impact. According to benchmark (`opzione_test.go`), a sequence of operation on nested pointers took less than 300ns on average.
 
 For value types, `Chained` is expected to behave the same as `Simple`.
 

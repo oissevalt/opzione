@@ -6,30 +6,27 @@ import (
 )
 
 func BenchmarkOptionalReflection(b *testing.B) {
+	number := 10
+	pointer := &number
+
 	for i := 0; i < b.N; i++ {
-		value1 := 12
-		value2 := 24
+		optional := ChainedSome(&pointer)
 
-		somePointer := ChainedSome[*int](&value1)
-		nonePointer := ChainedNone[*int]()
+		_ = optional.IsNone()
+		_, _ = optional.Value()
 
-		value, err := somePointer.Value()
-		value, err = nonePointer.Value()
-		somePointer.Swap(&value2)
-		nonePointer.Swap(&value1)
-		value, err = nonePointer.Value()
-		value, err = somePointer.Take()
+		pointer = nil
+		_ = optional.IsNone()
+		_, _ = optional.Value()
 
-		intptr := &value2
-		nested := &intptr
-		ptrptrOption := ChainedSome[***int](&nested)
+		p2 := &number
+		_ = optional.Swap(&p2)
 
-		valueptr, err := ptrptrOption.Value()
+		optional.With(func(i **int) {
+			_ = **i + 1
+		})
 
-		intptr = nil
-		valueptr, err = ptrptrOption.Value()
-
-		_, _, _ = value, err, valueptr
+		pointer = &number
 	}
 }
 
