@@ -37,22 +37,22 @@ func TestSimple_Example(t *testing.T) {
 	a := 10
 	p := &a
 
+	opt := SimpleSome(&p)
+	expect("TestSimple 1", t, opt.IsNone(), false)
+
+	p = nil
+	expect("TestSimple 2", t, opt.IsNone(), false)
+}
+
+func TestChained_Example(t *testing.T) {
+	a := 10
+	p := &a
+
 	opt := ChainedSome(&p)
 	expect("TestChained 1", t, opt.IsNone(), false)
 
 	p = nil
 	expect("TestChained 2", t, opt.IsNone(), true)
-}
-
-func TestChained_Example(t *testing.T) {
-	a := 10
-	p1 := &a
-	p2 := &p1
-
-	opt := ChainedSome(p2)
-	p1 = nil
-
-	expect("TestSimple", t, opt.IsNone(), true)
 }
 
 func TestValueOptional(t *testing.T) {
