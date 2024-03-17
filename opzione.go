@@ -22,7 +22,7 @@ type Optional[T interface{}] interface {
 
 	// Take attempts to move out the optional's inner value, leaving a
 	// None behind. If the optional is None, it returns ErrNoneOptional.
-	Take() (t T, err error)
+	Take() (*T, error)
 
 	// With accepts a closure which will be executed with the optional's
 	// inner value, if it is Some.

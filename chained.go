@@ -43,6 +43,8 @@ func ChainedNone[T any]() Optional[T] {
 	return &Chained[T]{empty: true, checkptr: ok}
 }
 
+// IsNone reports whether the current optional contains no value, merely
+// a nil pointer, or nested pointers to a nil reference.
 func (s *Chained[T]) IsNone() bool {
 	if s.empty || s.inner == nil {
 		return true
@@ -58,6 +60,8 @@ func (s *Chained[T]) IsNone() bool {
 	}
 }
 
+// Value attempts to retrieve the contained value. If the optional contains no value,
+// is a nil pointer, or nested pointers to nil, it will return ErrNoneOptional.
 func (s *Chained[T]) Value() (t T, err error) {
 	if s.IsNone() {
 		return t, ErrNoneOptional
@@ -65,6 +69,7 @@ func (s *Chained[T]) Value() (t T, err error) {
 	return *s.inner, nil
 }
 
+// Must returns the contained value, panicking if the optional is None.
 func (s *Chained[T]) Must() T {
 	if s.IsNone() {
 		panic(ErrNoneOptional)
@@ -72,6 +77,10 @@ func (s *Chained[T]) Must() T {
 	return *s.inner
 }
 
+// Swap swaps the contained value with v, returning the original value. If v is
+// a nil pointer, the current optional will be set to None. Whether the
+// returned value is valid is not guaranteed; if the optional is previously None,
+// it can be the zero value of the type, or nil.
 func (s *Chained[T]) Swap(v T) (t T) {
 	if !s.IsNone() {
 		t = *s.inner
@@ -97,15 +106,19 @@ func (s *Chained[T]) Swap(v T) (t T) {
 	return
 }
 
-func (s *Chained[T]) Take() (t T, err error) {
+// Take moves the inner value out, leaving the optional in a None state.
+// It returns a reference to the contained value, if any. Should the optional
+// previously be None, ErrNoneOptional is returned.
+func (s *Chained[T]) Take() (*T, error) {
 	if s.IsNone() {
-		return t, ErrNoneOptional
+		return nil, ErrNoneOptional
 	}
 	p := s.inner
 	s.inner, s.empty = nil, true
-	return *p, nil
+	return p, nil
 }
 
+// With executes the given closure with the contained value, if it is not None.
 func (s *Chained[T]) With(f func(T)) {
 	if !s.IsNone() {
 		f(*s.inner)

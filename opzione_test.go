@@ -80,9 +80,9 @@ func TestValueOptional(t *testing.T) {
 	expect("10", t, err, nil)
 	expect("11", t, value, 15)
 
-	value, err = someValue.Take()
+	value2, err := someValue.Take()
 	expect("12", t, err, nil)
-	expect("13", t, value, 23)
+	expect("13", t, *value2, 23)
 	expect("14", t, someValue.IsNone(), true)
 }
 
@@ -118,9 +118,9 @@ func TestPointerOptional(t *testing.T) {
 	expect("10", t, err, nil)
 	expect("11", t, value, &value1)
 
-	value, err = somePointer.Take()
+	value3, err := somePointer.Take()
 	expect("12", t, err, nil)
-	expect("13", t, value, &value2)
+	expect("13", t, *value3, &value2)
 	expect("14", t, somePointer.IsNone(), true)
 
 	swapped = somePointer.Swap(nil)

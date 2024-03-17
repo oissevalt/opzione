@@ -36,10 +36,14 @@ func SimpleNone[T interface{}]() *Simple[T] {
 	return &Simple[T]{empty: true, ptrtyp: ok}
 }
 
+// IsNone reports whether the current optional contains no value, or merely
+// a nil pointer.
 func (s *Simple[T]) IsNone() bool {
 	return s.empty || s.v == nil
 }
 
+// Value attempts to retrieve the contained value. If the optional contains no value,
+// it will return ErrNoneOptional.
 func (s *Simple[T]) Value() (t T, err error) {
 	if s.IsNone() {
 		return t, ErrNoneOptional
@@ -47,6 +51,7 @@ func (s *Simple[T]) Value() (t T, err error) {
 	return *s.v, nil
 }
 
+// Must returns the contained value, panicking if the optional is None.
 func (s *Simple[T]) Must() T {
 	if s.IsNone() {
 		panic(ErrNoneOptional)
@@ -54,6 +59,10 @@ func (s *Simple[T]) Must() T {
 	return *s.v
 }
 
+// Swap swaps the contained value with v, returning the original value. If v is
+// a nil pointer, the current optional will be set to None. Whether the
+// returned value is valid is not guaranteed; if the optional is previously None,
+// it can be the zero value of the type, or nil.
 func (s *Simple[T]) Swap(v T) (t T) {
 	if !s.IsNone() {
 		t = *s.v
@@ -62,7 +71,8 @@ func (s *Simple[T]) Swap(v T) (t T) {
 	if s.ptrtyp {
 		ptr, _ := isptr(v)
 		if ptr == nil {
-			panic("nil pointer cannot be used to construct Some")
+			s.v, s.empty = nil, true
+			return
 		}
 	}
 
@@ -70,15 +80,19 @@ func (s *Simple[T]) Swap(v T) (t T) {
 	return
 }
 
-func (s *Simple[T]) Take() (t T, err error) {
+// Take moves the inner value out, leaving the optional in a None state.
+// It returns a reference to the contained value, if any. Should the optional
+// previously be None, ErrNoneOptional is returned.
+func (s *Simple[T]) Take() (*T, error) {
 	if s.IsNone() {
-		return t, ErrNoneOptional
+		return nil, ErrNoneOptional
 	}
-	t = *s.v
+	t := s.v
 	s.v, s.empty = nil, true
 	return t, nil
 }
 
+// With executes the given closure with the contained value, if it is not None.
 func (s *Simple[T]) With(f func(T)) {
 	if !s.IsNone() {
 		f(*s.v)
