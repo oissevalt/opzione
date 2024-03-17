@@ -10,7 +10,7 @@ The package provides two basic optional types (containers), `Simple` and `Chaine
 
 ## Simple
 
-For pointer types, `Simple` only checks if the pointer it currently stores is `nil`, reporting the optional value is present, even if the stored pointer points to `nil`.
+`Simple` is the basic implementation of optional value. However, for pointer types, `Simple` only checks if the pointer it currently stores is `nil`, reporting the optional value is present, even if the stored pointer points to `nil`.
 
 ```go
 package main
@@ -36,7 +36,7 @@ func main() {
 
 In the above example, `&numptr` is ultimately deferenced to `nil`, which can still cause a runtime panic, especially when `IsNone` confidently reports `false`.
 
-Therefore, `Simple` is preferred when you only need to work with value types.
+Therefore, `Simple` is preferred when you only need to work with value types or single pointers.
 
 ## Chained
 
@@ -65,7 +65,7 @@ func main() {
 
 Note that the use of reflection can introduce additional operation time and memory usage, but best effort has been made to minimize such impact. According to benchmark (`opzione_test.go`), a sequence of operation on nested pointers took less than 300ns on average.
 
-For value types, `Chained` is expected to behave the same as `Simple`.
+For value types and single pointers, `Chained` is expected to behave the same as `Simple`.
 
 ## Optional
 
