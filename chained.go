@@ -45,62 +45,62 @@ func ChainedNone[T any]() Optional[T] {
 
 // IsNone reports whether the current optional contains no value, merely
 // a nil pointer, or nested pointers to a nil reference.
-func (s *Chained[T]) IsNone() bool {
-	if s.empty || s.inner == nil {
+func (c *Chained[T]) IsNone() bool {
+	if c.empty || c.inner == nil {
 		return true
 	} else {
-		if !s.checkptr {
+		if !c.checkptr {
 			return false
 		}
-		ptr, ok := isptr(s.inner)
+		ptr, ok := isptr(c.inner)
 		if !ok {
-			s.checkptr = false
+			c.checkptr = false
 		}
-		return ok && isnil(reflect.TypeOf(s.inner), ptr)
+		return ok && isnil(reflect.TypeOf(c.inner), ptr)
 	}
 }
 
 // Value attempts to retrieve the contained value. If the optional contains no value,
 // is a nil pointer, or nested pointers to nil, it will return ErrNoneOptional.
-func (s *Chained[T]) Value() (t T, err error) {
-	if s.IsNone() {
+func (c *Chained[T]) Value() (t T, err error) {
+	if c.IsNone() {
 		return t, ErrNoneOptional
 	}
-	return *s.inner, nil
+	return *c.inner, nil
 }
 
 // Must returns the contained value, panicking if the optional is None.
-func (s *Chained[T]) Must() T {
-	if s.IsNone() {
+func (c *Chained[T]) Must() T {
+	if c.IsNone() {
 		panic(ErrNoneOptional)
 	}
-	return *s.inner
+	return *c.inner
 }
 
 // Swap swaps the contained value with v, returning the original value. If v is
 // a nil pointer, the current optional will be set to None. Whether the
 // returned value is valid is not guaranteed; if the optional is previously None,
 // it can be the zero value of the type, or nil.
-func (s *Chained[T]) Swap(v T) (t T) {
-	if !s.IsNone() {
-		t = *s.inner
+func (c *Chained[T]) Swap(v T) (t T) {
+	if !c.IsNone() {
+		t = *c.inner
 	}
 
-	if s.checkptr {
+	if c.checkptr {
 		ptr, ok := isptr(v)
 		if ok {
 			if ptr == nil {
-				s.inner = nil
-				s.empty = true
+				c.inner = nil
+				c.empty = true
 			} else {
-				s.inner = &v
-				s.empty = isnil(reflect.TypeOf(v), ptr)
+				c.inner = &v
+				c.empty = isnil(reflect.TypeOf(v), ptr)
 			}
 		}
-		s.checkptr = ok
+		c.checkptr = ok
 	} else {
-		s.inner = &v
-		s.empty = false
+		c.inner = &v
+		c.empty = false
 	}
 
 	return
@@ -109,19 +109,19 @@ func (s *Chained[T]) Swap(v T) (t T) {
 // Take moves the inner value out, leaving the optional in a None state.
 // It returns a reference to the contained value, if any. Should the optional
 // previously be None, ErrNoneOptional is returned.
-func (s *Chained[T]) Take() (*T, error) {
-	if s.IsNone() {
+func (c *Chained[T]) Take() (*T, error) {
+	if c.IsNone() {
 		return nil, ErrNoneOptional
 	}
-	p := s.inner
-	s.inner, s.empty = nil, true
+	p := c.inner
+	c.inner, c.empty = nil, true
 	return p, nil
 }
 
 // With executes the given closure with the contained value, if it is not None.
-func (s *Chained[T]) With(f func(T)) {
-	if !s.IsNone() {
-		f(*s.inner)
+func (c *Chained[T]) With(f func(T)) {
+	if !c.IsNone() {
+		f(*c.inner)
 	}
 }
 
