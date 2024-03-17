@@ -30,5 +30,5 @@ type Optional[T interface{}] interface {
 
 	// Assign assigns the optional's contained value to *p, if the optional
 	// is not None.
-	Assign(p *T) bool
+	Assign(p **T) bool
 }

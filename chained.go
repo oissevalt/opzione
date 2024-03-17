@@ -127,11 +127,11 @@ func (c *Chained[T]) With(f func(T)) {
 
 // Assign assigns the inner value of the optional to *p, if the optional is
 // not None. It returns a boolean indicating whether an assignment is made.
-func (c *Chained[T]) Assign(p *T) bool {
-	if !c.IsNone() {
+func (c *Chained[T]) Assign(p **T) bool {
+	if c.IsNone() {
 		return false
 	}
-	*p = *c.v
+	*p = c.v
 	return true
 }
 

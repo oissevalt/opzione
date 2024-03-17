@@ -87,6 +87,12 @@ func TestValueOptional(t *testing.T) {
 	expect("12", t, err, nil)
 	expect("13", t, *value2, 23)
 	expect("14", t, someValue.IsNone(), true)
+
+	var p *int
+	someValue.Swap(55)
+	assigned := someValue.Assign(&p)
+	expect("15", t, assigned, true)
+	expect("15.1", t, *p, 55)
 }
 
 func TestPointerOptional(t *testing.T) {

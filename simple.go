@@ -101,10 +101,10 @@ func (s *Simple[T]) With(f func(T)) {
 
 // Assign assigns the inner value of the optional to *p, if the optional is
 // not None. It returns a boolean indicating whether an assignment is made.
-func (s *Simple[T]) Assign(p *T) bool {
-	if !s.IsNone() {
+func (s *Simple[T]) Assign(p **T) bool {
+	if s.IsNone() {
 		return false
 	}
-	*p = *s.v
+	*p = s.v
 	return true
 }
