@@ -2,7 +2,6 @@ package opzione
 
 import (
 	"reflect"
-	"unsafe"
 )
 
 // Chained is an optional type which not only checks if the stored value
@@ -25,11 +24,11 @@ type Chained[T any] struct {
 }
 
 // ChainedSome constructs a Chained optional with value. It panics if v is
-// a nil pointer, or a nested pointer to nil.
+// a nil pointer, or a nested pointer to nil, with nil slices being an exception.
 func ChainedSome[T any](v T) *Chained[T] {
-	ptr, ok := isptr(v)
+	val, ok := isptr(v)
 	if ok {
-		if isnil(reflect.TypeOf(v), ptr) {
+		if val.IsNil() || isnil(val) {
 			panic("nil pointer cannot be used to construct Some")
 		}
 	}
@@ -52,11 +51,11 @@ func (c *Chained[T]) IsNone() bool {
 		if !c.checkptr {
 			return false
 		}
-		ptr, ok := isptr(c.v)
+		val, ok := isptr(*c.v)
 		if !ok {
 			c.checkptr = false
 		}
-		return ok && isnil(reflect.TypeOf(c.v), ptr)
+		return ok && (val.IsNil() || isnil(val))
 	}
 }
 
@@ -87,14 +86,14 @@ func (c *Chained[T]) Swap(v T) (t T) {
 	}
 
 	if c.checkptr {
-		ptr, ok := isptr(v)
+		val, ok := isptr(v)
 		if ok {
-			if ptr == nil {
+			if val.IsNil() {
 				c.v = nil
 				c.empty = true
 			} else {
 				c.v = &v
-				c.empty = isnil(reflect.TypeOf(v), ptr)
+				c.empty = isnil(val)
 			}
 		}
 		c.checkptr = ok
@@ -135,38 +134,44 @@ func (c *Chained[T]) Assign(p **T) bool {
 	return true
 }
 
-func isptr[T any](v T) (unsafe.Pointer, bool) {
-	val := reflect.ValueOf(v)
-	if val.Kind() == reflect.Pointer {
-		return val.UnsafePointer(), true
+func isptr[T any](v T) (val reflect.Value, b bool) {
+	val = reflect.ValueOf(v)
+	switch val.Kind() {
+	case reflect.Chan, reflect.Func, reflect.Pointer, reflect.Map, reflect.Interface:
+		return val, true
+	default:
+		return
 	}
-	return nil, false
 }
 
-func isnil(typ reflect.Type, p unsafe.Pointer) bool {
-	if p == nil {
+func isnil(val reflect.Value) bool {
+	if val.IsNil() {
+		println("valIsNil")
 		return true
 	}
 
-	val := reflect.NewAt(typ, p).Elem()
 	switch val.Kind() {
 	case reflect.Pointer:
 		pointed := val.Elem()
 		if !pointed.IsValid() {
+			println("pointed invalid")
 			return true
 		}
-		if pointed.Kind() != reflect.Pointer {
+		switch pointed.Kind() {
+		case reflect.Func, reflect.Map, reflect.Chan:
+			println("pointedIsNil:", pointed.IsNil())
+			return pointed.IsNil()
+		case reflect.Pointer, reflect.Interface:
+			println("recur")
+			return isnil(pointed.Elem())
+		default:
 			return false
 		}
-		nestptr := pointed.Elem()
-		if !nestptr.IsValid() {
-			return true
-		}
-		if nestptr.Kind() != reflect.Pointer {
-			return false
-		}
-		return isnil(nestptr.Type(), pointed.UnsafePointer())
+	case reflect.Func, reflect.Map, reflect.Chan, reflect.Interface:
+		println("valIsNil:", val.IsNil())
+		return val.IsNil()
 	case reflect.Invalid:
+		println("invalid: true")
 		return true
 	default:
 		return false

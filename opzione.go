@@ -1,3 +1,4 @@
+// Package opzione provides operations with optional values.
 package opzione
 
 import (
@@ -40,13 +41,25 @@ type Optional[T interface{}] interface {
 // depends on the generic type T and initial value v.
 //
 //   - SimpleSome: T is a value type or a simple pointer type, and t is not nil.
+//     However, SimpleSome is created for nil slices because they are still valid
+//     (can be called safely with cap, len, or append).
 //   - SimpleNone: T is a simple pointer type, and t is a nil pointer.
 //   - ChainedSome: T is a nested pointer type, and t is not nil.
 //   - ChainedNone: T is a nested pointer type, and t is nil or deferences to nil.
 func NewOptional[T any](v T) Optional[T] {
 	val := reflect.ValueOf(v)
 	if val.Kind() != reflect.Pointer {
-		return SimpleSome(v)
+		switch val.Kind() {
+		case reflect.Chan, reflect.Func, reflect.Map, reflect.Interface:
+			// These types and slices are treated somewhat like pointers.
+			// Slice is not listed because nil slice is also valid.
+			if val.IsNil() {
+				return SimpleNone[T]()
+			}
+			return SimpleSome(v)
+		default:
+			return SimpleSome(v)
+		}
 	}
 
 	rawptr := val.UnsafePointer()
@@ -54,7 +67,7 @@ func NewOptional[T any](v T) Optional[T] {
 
 	if vtyp.Elem().Kind() == reflect.Pointer {
 		// Chained
-		if rawptr == nil || isnil(vtyp, rawptr) {
+		if rawptr == nil || isnil(val) {
 			return ChainedNone[T]()
 		}
 		return ChainedSome(v)

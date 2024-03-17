@@ -57,6 +57,50 @@ func TestChained_Example(t *testing.T) {
 	expect("TestChained 2", t, opt.IsNone(), true)
 }
 
+func TestMapType(t *testing.T) {
+	var m = map[int]int{12: 14}
+
+	chOptional := ChainedSome(m) // ?
+	expect("3.1", t, chOptional.IsNone(), false)
+
+	println("______")
+	m = nil
+	expect("3.2", t, chOptional.IsNone(), false)
+
+	m2 := chOptional.Must()
+	t.Log(m2[12])
+}
+
+func TestSpecialTypes(t *testing.T) {
+	// mapOptional := ChainedSome[map[int]int](nil) // expected to panic
+
+	m := map[int]int{1: 2}
+	mapOptional := ChainedSome[map[int]int](m)
+	expect("1", t, mapOptional.IsNone(), false)
+
+	// fnOptional := ChainedSome[func(int) string](nil) // expected to panic
+	var fn = func(i int) string {
+		return "hh"
+	}
+	fnOptional := ChainedSome[*func(int) string](&fn)
+
+	fn = nil
+	expect("2", t, fnOptional.IsNone(), true)
+
+	var ch = make(chan int)
+	chOptional := ChainedSome(ch)
+	expect("3.1", t, chOptional.IsNone(), false)
+
+	ch = nil
+	expect("3.2", t, chOptional.IsNone(), false)
+
+	ch2 := chOptional.Must()
+	go func() {
+		ch2 <- 124
+	}()
+	t.Log(<-ch2)
+}
+
 func TestNewOptional(t *testing.T) {
 	valueSome := NewOptional(0)             // expected: SimpleSome
 	valueNone := NewOptional[*os.File](nil) // expected: SimpleNone
@@ -87,6 +131,36 @@ func TestNewOptional(t *testing.T) {
 
 	if s, ok := pointerNone.(*Chained[**int]); !ok {
 		t.Error("Expected Chained[**int], found", reflect.TypeOf(valueSome))
+	} else if !s.IsNone() {
+		t.Error("Expected None, found Some")
+	}
+
+	sliceSome := NewOptional([]int{1, 2, 3}) // expected: SimpleSome
+	sliceNone := NewOptional[[]int](nil)     // expected: SimpleSome!
+
+	if s, ok := sliceSome.(*Simple[[]int]); !ok {
+		t.Error("Expected Simple[[]int], found", reflect.TypeOf(valueSome))
+	} else if s.IsNone() {
+		t.Error("Expected Some, found None")
+	}
+
+	if s, ok := sliceNone.(*Simple[[]int]); !ok {
+		t.Error("Expected Simple[[]int], found", reflect.TypeOf(valueSome))
+	} else if s.IsNone() { // !
+		t.Error("Expected Some, found None")
+	}
+
+	mapSome := NewOptional(map[int]int{1: 2}) // expected: SimpleSome
+	mapNone := NewOptional[map[int]int](nil)  // expected: SimpleNone
+
+	if s, ok := mapSome.(*Simple[map[int]int]); !ok {
+		t.Error("Expected Simple[map[int]int], found", reflect.TypeOf(valueSome))
+	} else if s.IsNone() {
+		t.Error("Expected Some, found None")
+	}
+
+	if s, ok := mapNone.(*Simple[map[int]int]); !ok {
+		t.Error("Expected Simple[map[int]int], found", reflect.TypeOf(valueSome))
 	} else if !s.IsNone() {
 		t.Error("Expected None, found Some")
 	}

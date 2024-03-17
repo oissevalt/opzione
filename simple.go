@@ -18,11 +18,11 @@ type Simple[T interface{}] struct {
 }
 
 // SimpleSome constructs a Simple optional with a value. It panics if v is
-// a nil pointer.
+// a nil pointer, with nil slices being an exception.
 func SimpleSome[T interface{}](v T) *Simple[T] {
-	ptr, ok := isptr(v)
+	val, ok := isptr(v)
 	if ok {
-		if ptr == nil {
+		if val.IsNil() {
 			panic("nil pointer cannot be used to construct Some")
 		}
 	}
@@ -69,8 +69,8 @@ func (s *Simple[T]) Swap(v T) (t T) {
 	}
 
 	if s.ptrtyp {
-		ptr, _ := isptr(v)
-		if ptr == nil {
+		val, _ := isptr(v)
+		if val.IsNil() {
 			s.v, s.empty = nil, true
 			return
 		}
