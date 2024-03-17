@@ -20,7 +20,7 @@ import (
 // to minimum. For value types, Chained behaves the same as Simple.
 type Chained[T any] struct {
 	empty    bool
-	inner    *T
+	v        *T
 	checkptr bool
 }
 
@@ -33,7 +33,7 @@ func ChainedSome[T any](v T) Optional[T] {
 			panic("nil pointer cannot be used to construct Some")
 		}
 	}
-	return &Chained[T]{inner: &v, checkptr: ok}
+	return &Chained[T]{v: &v, checkptr: ok}
 }
 
 // ChainedNone constructs an optional with no value.
@@ -46,17 +46,17 @@ func ChainedNone[T any]() Optional[T] {
 // IsNone reports whether the current optional contains no value, merely
 // a nil pointer, or nested pointers to a nil reference.
 func (c *Chained[T]) IsNone() bool {
-	if c.empty || c.inner == nil {
+	if c.empty || c.v == nil {
 		return true
 	} else {
 		if !c.checkptr {
 			return false
 		}
-		ptr, ok := isptr(c.inner)
+		ptr, ok := isptr(c.v)
 		if !ok {
 			c.checkptr = false
 		}
-		return ok && isnil(reflect.TypeOf(c.inner), ptr)
+		return ok && isnil(reflect.TypeOf(c.v), ptr)
 	}
 }
 
@@ -66,7 +66,7 @@ func (c *Chained[T]) Value() (t T, err error) {
 	if c.IsNone() {
 		return t, ErrNoneOptional
 	}
-	return *c.inner, nil
+	return *c.v, nil
 }
 
 // Must returns the contained value, panicking if the optional is None.
@@ -74,7 +74,7 @@ func (c *Chained[T]) Must() T {
 	if c.IsNone() {
 		panic(ErrNoneOptional)
 	}
-	return *c.inner
+	return *c.v
 }
 
 // Swap swaps the contained value with v, returning the original value. If v is
@@ -83,23 +83,23 @@ func (c *Chained[T]) Must() T {
 // it can be the zero value of the type, or nil.
 func (c *Chained[T]) Swap(v T) (t T) {
 	if !c.IsNone() {
-		t = *c.inner
+		t = *c.v
 	}
 
 	if c.checkptr {
 		ptr, ok := isptr(v)
 		if ok {
 			if ptr == nil {
-				c.inner = nil
+				c.v = nil
 				c.empty = true
 			} else {
-				c.inner = &v
+				c.v = &v
 				c.empty = isnil(reflect.TypeOf(v), ptr)
 			}
 		}
 		c.checkptr = ok
 	} else {
-		c.inner = &v
+		c.v = &v
 		c.empty = false
 	}
 
@@ -113,16 +113,26 @@ func (c *Chained[T]) Take() (*T, error) {
 	if c.IsNone() {
 		return nil, ErrNoneOptional
 	}
-	p := c.inner
-	c.inner, c.empty = nil, true
+	p := c.v
+	c.v, c.empty = nil, true
 	return p, nil
 }
 
 // With executes the given closure with the contained value, if it is not None.
 func (c *Chained[T]) With(f func(T)) {
 	if !c.IsNone() {
-		f(*c.inner)
+		f(*c.v)
 	}
+}
+
+// Assign assigns the inner value of the optional to *p, if the optional is
+// not None. It returns a boolean indicating whether an assignment is made.
+func (c *Chained[T]) Assign(p *T) bool {
+	if !c.IsNone() {
+		return false
+	}
+	*p = *c.v
+	return true
 }
 
 func isptr[T any](v T) (unsafe.Pointer, bool) {

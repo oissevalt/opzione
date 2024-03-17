@@ -5,6 +5,9 @@ import (
 	"testing"
 )
 
+var _ Optional[int] = &Simple[int]{}
+var _ Optional[int] = &Chained[int]{}
+
 func BenchmarkOptionalReflection(b *testing.B) {
 	number := 10
 	pointer := &number
