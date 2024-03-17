@@ -145,33 +145,23 @@ func isptr[T any](v T) (val reflect.Value, b bool) {
 }
 
 func isnil(val reflect.Value) bool {
-	if val.IsNil() {
-		println("valIsNil")
-		return true
-	}
-
 	switch val.Kind() {
 	case reflect.Pointer:
 		pointed := val.Elem()
 		if !pointed.IsValid() {
-			println("pointed invalid")
 			return true
 		}
 		switch pointed.Kind() {
 		case reflect.Func, reflect.Map, reflect.Chan:
-			println("pointedIsNil:", pointed.IsNil())
 			return pointed.IsNil()
 		case reflect.Pointer, reflect.Interface:
-			println("recur")
 			return isnil(pointed.Elem())
 		default:
 			return false
 		}
 	case reflect.Func, reflect.Map, reflect.Chan, reflect.Interface:
-		println("valIsNil:", val.IsNil())
 		return val.IsNil()
 	case reflect.Invalid:
-		println("invalid: true")
 		return true
 	default:
 		return false
