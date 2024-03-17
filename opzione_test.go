@@ -2,6 +2,8 @@ package opzione
 
 import (
 	"fmt"
+	"os"
+	"reflect"
 	"testing"
 )
 
@@ -53,6 +55,41 @@ func TestChained_Example(t *testing.T) {
 
 	p = nil
 	expect("TestChained 2", t, opt.IsNone(), true)
+}
+
+func TestNewOptional(t *testing.T) {
+	valueSome := NewOptional(0)             // expected: SimpleSome
+	valueNone := NewOptional[*os.File](nil) // expected: SimpleNone
+
+	number := 10
+	numptr := &number
+
+	pointerSome := NewOptional(&numptr)    // expected: ChainedSome
+	pointerNone := NewOptional[**int](nil) // expected: ChainedNone
+
+	if s, ok := valueSome.(*Simple[int]); !ok {
+		t.Error("Expected Simple[int], found", reflect.TypeOf(valueSome))
+	} else if s.IsNone() {
+		t.Error("Expected Some, found None")
+	}
+
+	if s, ok := valueNone.(*Simple[*os.File]); !ok {
+		t.Error("Expected Simple[*os.File], found", reflect.TypeOf(valueNone))
+	} else if !s.IsNone() {
+		t.Error("Expected None, found Some")
+	}
+
+	if s, ok := pointerSome.(*Chained[**int]); !ok {
+		t.Error("Expected Chained[**int], found", reflect.TypeOf(valueSome))
+	} else if s.IsNone() {
+		t.Error("Expected Some, found None")
+	}
+
+	if s, ok := pointerNone.(*Chained[**int]); !ok {
+		t.Error("Expected Chained[**int], found", reflect.TypeOf(valueSome))
+	} else if !s.IsNone() {
+		t.Error("Expected None, found Some")
+	}
 }
 
 func TestValueOptional(t *testing.T) {

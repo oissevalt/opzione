@@ -1,6 +1,9 @@
 package opzione
 
-import "errors"
+import (
+	"errors"
+	"reflect"
+)
 
 var ErrNoneOptional = errors.New("optional value is none")
 
@@ -31,4 +34,34 @@ type Optional[T interface{}] interface {
 	// Assign assigns the optional's contained value to *p, if the optional
 	// is not None.
 	Assign(p **T) bool
+}
+
+// NewOptional returns an optional type, whose specific implementation
+// depends on the generic type T and initial value v.
+//
+//   - SimpleSome: T is a value type or a simple pointer type, and t is not nil.
+//   - SimpleNone: T is a simple pointer type, and t is a nil pointer.
+//   - ChainedSome: T is a nested pointer type, and t is not nil.
+//   - ChainedNone: T is a nested pointer type, and t is nil or deferences to nil.
+func NewOptional[T any](v T) Optional[T] {
+	val := reflect.ValueOf(v)
+	if val.Kind() != reflect.Pointer {
+		return SimpleSome(v)
+	}
+
+	rawptr := val.UnsafePointer()
+	vtyp := val.Type()
+
+	if vtyp.Elem().Kind() == reflect.Pointer {
+		// Chained
+		if rawptr == nil || isnil(vtyp, rawptr) {
+			return ChainedNone[T]()
+		}
+		return ChainedSome(v)
+	}
+
+	if rawptr == nil {
+		return SimpleNone[T]()
+	}
+	return SimpleSome(v)
 }

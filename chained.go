@@ -26,7 +26,7 @@ type Chained[T any] struct {
 
 // ChainedSome constructs a Chained optional with value. It panics if v is
 // a nil pointer, or a nested pointer to nil.
-func ChainedSome[T any](v T) Optional[T] {
+func ChainedSome[T any](v T) *Chained[T] {
 	ptr, ok := isptr(v)
 	if ok {
 		if isnil(reflect.TypeOf(v), ptr) {
@@ -37,7 +37,7 @@ func ChainedSome[T any](v T) Optional[T] {
 }
 
 // ChainedNone constructs an optional with no value.
-func ChainedNone[T any]() Optional[T] {
+func ChainedNone[T any]() *Chained[T] {
 	var defaultValue T
 	_, ok := isptr(defaultValue)
 	return &Chained[T]{empty: true, checkptr: ok}
