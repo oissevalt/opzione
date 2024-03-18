@@ -8,6 +8,9 @@ go get github.com/oissevalt/opzione
 
 The package provides two basic optional types (containers), `Simple` and `Chained`.
 
+> [!WARNING]  
+> This package's content, API, and behaviour have not yet been stabilized.
+
 ## Simple
 
 `Simple` is the basic implementation of optional value. However, for pointer types, `Simple` only checks if the pointer it currently stores is `nil`, reporting the optional value is present, even if the stored pointer points to `nil`.
