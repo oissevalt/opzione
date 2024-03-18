@@ -6,14 +6,14 @@ _Opzione_ (Italian "option") is a Go library for optionals, with tracking of nes
 go get github.com/oissevalt/opzione
 ```
 
-The package provides two basic optional types (containers), `Simple` and `Chained`.
+The package provides two basic optional types (containers), `Simple` and `Chained`. It works by dynamically checking whether the containers contain meaningful values, which in most cases means not being `nil`. An exception are slices, as `nil` slices are safe to work with. Value types will never be none, except when the optional is constructed by calling `XXXNone`, or its value is moved out with `Take`.
 
-> [!WARNING]  
+> [!WARNING]
 > This package's content, and behaviour have not yet been stabilized. Bugs and vulnerabilities may also be present.
 
 ## Simple
 
-`Simple` is the basic implementation of optional value. However, for pointer types, `Simple` only checks if the pointer it currently stores is `nil`. Thus, for nested pointers, calling `IsNone` only reflects the nil-ness of the shallowest reference.
+`Simple` is the basic implementation of a generic container of optional value. However, for pointer types, `Simple` only checks if the pointer it stores is `nil`. Thus, for nested pointers, `IsNone` only reflects the nil-ness of the shallowest reference.
 
 ```go
 package main
@@ -37,13 +37,13 @@ func main() {
 }
 ```
 
-In the above example, `&numptr` is ultimately deferenced to `nil`, which can still cause a runtime panic, especially when `IsNone` confidently reports `false`.
+In the above example, `&numptr` is ultimately deferenced to `nil`, which can still cause a runtime panic, despite `optional.IsNone()` confidently reports `false`.
 
 Therefore, `Simple` is preferred when you only need to work with value types or simple pointers.
 
 ## Chained
 
-`Chained` tracks nested pointers and their changes using runtime reflection. This way, it is able to report whether the nested pointers deference to `nil`.
+`Chained` is another optional container. It tracks nested pointers using runtime reflection. This way, it is able to report whether the nested pointers deference to `nil`, or a pointer is modified to be `nil` afterwards.
 
 ```go
 package main
@@ -66,7 +66,7 @@ func main() {
 }
 ```
 
-Note that the use of reflection can introduce additional operation time and memory usage, but best effort has been made to minimize such impact. According to benchmark (`opzione_test.go`), a sequence of operation on nested pointers took less than 200ns on average.
+Note that the use of reflection can introduce additional time cost and memory usage, but best effort has been made to minimize such impact. According to benchmark (`opzione_test.go`), a sequence of operation on nested pointers took less than 200ns on average.
 
 For value types and single pointers, `Chained` is expected to behave the same as `Simple`. `Chained` does _not_ track unsafe pointers, either, because they can be arbitrarily manipulated and interpreted; there is no stable way to monitor them.
 
