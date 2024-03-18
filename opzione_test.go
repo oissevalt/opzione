@@ -1,278 +1,273 @@
 package opzione
 
 import (
-	"fmt"
 	"os"
-	"reflect"
 	"testing"
 )
 
+// Interface assertions
 var _ Optional[int] = &Simple[int]{}
 var _ Optional[int] = &Chained[int]{}
 
-func BenchmarkOptionalReflection(b *testing.B) {
-	number := 10
-	pointer := &number
+func TestValueTypes(t *testing.T) {
+	option := SimpleSome(12)
+	if option.IsNone() {
+		t.Error("Unexpected None")
+	}
 
-	for i := 0; i < b.N; i++ {
-		optional := ChainedSome(&pointer)
+	var (
+		value int
+		err   error
+	)
 
-		_ = optional.IsNone()
-		_, _ = optional.Value()
+	value = option.Must()
+	if value != 12 {
+		t.Error("Unexpected value:", value)
+	}
 
-		pointer = nil
-		_ = optional.IsNone()
-		_, _ = optional.Value()
+	swapped := option.Swap(24)
+	value = option.Must()
+	if swapped != 12 {
+		t.Error("Unexpected swapped value:", swapped)
+	}
+	if value != 24 {
+		t.Error("Unexpected value:", value)
+	}
 
-		p2 := &number
-		_ = optional.Swap(&p2)
+	_, _ = option.Take()
+	_, err = option.Value()
+	if err == nil {
+		t.Error("Unexpected nil error")
+	}
+	if !option.IsNone() {
+		t.Error("Unexpected Some")
+	}
 
-		optional.With(func(i **int) {
-			_ = **i + 1
-		})
+	option.With(func(_ int) {
+		t.Fatal("Closure executed when it shouldn't")
+	})
 
-		pointer = &number
+	run := false
+	option.Swap(36)
+	option.With(func(_ int) {
+		run = true
+	})
+	if !run {
+		t.Fatal("Closure not executed when it should")
+	}
+
+	var numptr *int
+	option.Assign(&numptr)
+
+	if *numptr != 36 {
+		t.Error("Assign failed:", *numptr)
 	}
 }
 
-func TestSimple_Example(t *testing.T) {
-	a := 10
-	p := &a
-
-	opt := SimpleSome(&p)
-	expect("TestSimple 1", t, opt.IsNone(), false)
-
-	p = nil
-	expect("TestSimple 2", t, opt.IsNone(), false)
-}
-
-func TestChained_Example(t *testing.T) {
-	a := 10
-	p := &a
-
-	opt := ChainedSome(&p)
-	expect("TestChained 1", t, opt.IsNone(), false)
-
-	p = nil
-	expect("TestChained 2", t, opt.IsNone(), true)
-}
-
-func TestMapType(t *testing.T) {
-	var m = map[int]int{12: 14}
-
-	chOptional := ChainedSome(m) // ?
-	expect("3.1", t, chOptional.IsNone(), false)
-
-	println("______")
-	m = nil
-	expect("3.2", t, chOptional.IsNone(), false)
-
-	m2 := chOptional.Must()
-	t.Log(m2[12])
-}
-
-func TestSpecialTypes(t *testing.T) {
-	// mapOptional := ChainedSome[map[int]int](nil) // expected to panic
-
-	m := map[int]int{1: 2}
-	mapOptional := ChainedSome[map[int]int](m)
-	expect("1", t, mapOptional.IsNone(), false)
-
-	// fnOptional := ChainedSome[func(int) string](nil) // expected to panic
-	var fn = func(i int) string {
-		return "hh"
+func TestSimplePointers(t *testing.T) {
+	file, err := os.Open("go.mod")
+	if err != nil {
+		t.Fatal("Error when preparing *os.File:", err)
 	}
-	fnOptional := ChainedSome[*func(int) string](&fn)
+	defer file.Close()
 
-	fn = nil
-	expect("2", t, fnOptional.IsNone(), true)
+	ShouldPanic(t, func() {
+		option := SimpleSome[*os.File](nil)
+		_ = option
+	}, true)
 
-	var ch = make(chan int)
-	chOptional := ChainedSome(ch)
-	expect("3.1", t, chOptional.IsNone(), false)
+	option := SimpleSome(file)
+	if option.IsNone() {
+		t.Error("Unexpected None")
+	}
 
-	ch = nil
-	expect("3.2", t, chOptional.IsNone(), false)
+	file2 := option.Must()
+	if file2.Name() != "go.mod" {
+		t.Fatal("Unexpected file object:", file2.Name())
+	}
 
-	ch2 := chOptional.Must()
-	go func() {
-		ch2 <- 124
-	}()
-	t.Log(<-ch2)
+	run := false
+	option.With(func(_ *os.File) {
+		run = true
+	})
+	if !run {
+		t.Error("Closure not run when it should")
+	}
+
+	option.Swap(nil)
+	if !option.IsNone() {
+		t.Error("Unexpected Some")
+	}
+	option.Swap(file)
+
+	file3, _ := option.Take()
+	if *file3 != file {
+		t.Error("Different references found:", *file3, file)
+	}
 }
 
-func TestNewOptional(t *testing.T) {
-	valueSome := NewOptional(0)             // expected: SimpleSome
-	valueNone := NewOptional[*os.File](nil) // expected: SimpleNone
-
+func TestChainedOptional(t *testing.T) {
 	number := 10
 	numptr := &number
+	nilptr := (**int)(nil)
 
-	pointerSome := NewOptional(&numptr)    // expected: ChainedSome
-	pointerNone := NewOptional[**int](nil) // expected: ChainedNone
+	ShouldPanic(t, func() {
+		optional := ChainedSome[**int](nil)
+		_ = optional
+	}, true)
 
-	if s, ok := valueSome.(*Simple[int]); !ok {
-		t.Error("Expected Simple[int], found", reflect.TypeOf(valueSome))
-	} else if s.IsNone() {
-		t.Error("Expected Some, found None")
+	ShouldPanic(t, func() {
+		ptr := &nilptr
+		optional := ChainedSome(ptr)
+		_ = optional
+	}, true)
+
+	optional := ChainedSome(&numptr)
+	if optional.IsNone() {
+		t.Error("Unexpected None")
 	}
 
-	if s, ok := valueNone.(*Simple[*os.File]); !ok {
-		t.Error("Expected Simple[*os.File], found", reflect.TypeOf(valueNone))
-	} else if !s.IsNone() {
-		t.Error("Expected None, found Some")
+	var (
+		value **int
+		err   error
+	)
+
+	value = optional.Must()
+	if **value != 10 {
+		t.Error("Unexpected pointer:", **value)
 	}
 
-	if s, ok := pointerSome.(*Chained[**int]); !ok {
-		t.Error("Expected Chained[**int], found", reflect.TypeOf(valueSome))
-	} else if s.IsNone() {
-		t.Error("Expected Some, found None")
+	*value = nil
+	if !optional.IsNone() {
+		t.Error("Unexpected some")
 	}
 
-	if s, ok := pointerNone.(*Chained[**int]); !ok {
-		t.Error("Expected Chained[**int], found", reflect.TypeOf(valueSome))
-	} else if !s.IsNone() {
-		t.Error("Expected None, found Some")
+	*value = &number
+	if optional.IsNone() {
+		t.Error("Unexpected None")
 	}
 
-	sliceSome := NewOptional([]int{1, 2, 3}) // expected: SimpleSome
-	sliceNone := NewOptional[[]int](nil)     // expected: SimpleSome!
-
-	if s, ok := sliceSome.(*Simple[[]int]); !ok {
-		t.Error("Expected Simple[[]int], found", reflect.TypeOf(valueSome))
-	} else if s.IsNone() {
-		t.Error("Expected Some, found None")
+	optional.Swap(nilptr)
+	if !optional.IsNone() {
+		t.Error("Unexpected Some")
 	}
 
-	if s, ok := sliceNone.(*Simple[[]int]); !ok {
-		t.Error("Expected Simple[[]int], found", reflect.TypeOf(valueSome))
-	} else if s.IsNone() { // !
-		t.Error("Expected Some, found None")
+	_, err = optional.Value()
+	if err == nil {
+		t.Error("Unexpected nil error")
 	}
 
-	mapSome := NewOptional(map[int]int{1: 2}) // expected: SimpleSome
-	mapNone := NewOptional[map[int]int](nil)  // expected: SimpleNone
+	optional.Swap(&numptr)
 
-	if s, ok := mapSome.(*Simple[map[int]int]); !ok {
-		t.Error("Expected Simple[map[int]int], found", reflect.TypeOf(valueSome))
-	} else if s.IsNone() {
-		t.Error("Expected Some, found None")
-	}
-
-	if s, ok := mapNone.(*Simple[map[int]int]); !ok {
-		t.Error("Expected Simple[map[int]int], found", reflect.TypeOf(valueSome))
-	} else if !s.IsNone() {
-		t.Error("Expected None, found Some")
+	ptr := &nilptr
+	optional.Assign(&ptr)
+	if n := ***ptr; n != 10 {
+		t.Error("Unexpected dereference")
 	}
 }
 
-func TestValueOptional(t *testing.T) {
-	someValue := SimpleSome[int](12)
-	noneValue := SimpleNone[int]()
+func TestSlices(t *testing.T) {
+	noneSlice := []int(nil)
 
-	expect("1", t, someValue.IsNone(), false)
-	expect("2", t, noneValue.IsNone(), true)
-
-	value, err := someValue.Value()
-	expect("3", t, err, nil)
-	expect("4", t, value, 12)
-
-	value, err = noneValue.Value()
-	expect("5", t, err, ErrNoneOptional)
-	expect("6", t, value, 0)
-
-	someValue.Swap(23)
-	value, err = someValue.Value()
-	expect("7", t, err, nil)
-	expect("8", t, value, 23)
-
-	swapped := noneValue.Swap(15)
-	expect("9", t, noneValue.IsNone(), false)
-	expect("9.1", t, swapped, 0)
-
-	value, err = noneValue.Value()
-	expect("10", t, err, nil)
-	expect("11", t, value, 15)
-
-	value2, err := someValue.Take()
-	expect("12", t, err, nil)
-	expect("13", t, *value2, 23)
-	expect("14", t, someValue.IsNone(), true)
-
-	var p *int
-	someValue.Swap(55)
-	assigned := someValue.Assign(&p)
-	expect("15", t, assigned, true)
-	expect("15.1", t, *p, 55)
-}
-
-func TestPointerOptional(t *testing.T) {
-	value1 := 12
-	value2 := 24
-
-	somePointer := ChainedSome[*int](&value1)
-	nonePointer := ChainedNone[*int]()
-
-	expect("1", t, somePointer.IsNone(), false)
-	expect("2", t, nonePointer.IsNone(), true)
-
-	value, err := somePointer.Value()
-	expect("3", t, err, nil)
-	expect("4", t, value, &value1)
-
-	value, err = nonePointer.Value()
-	expect("5", t, err, ErrNoneOptional)
-	expect("6", t, value, nil)
-
-	swapped := somePointer.Swap(&value2)
-	expect("7.1", t, swapped, &value1)
-
-	value, err = somePointer.Value()
-	expect("7", t, err, nil)
-	expect("8", t, value, &value2)
-
-	nonePointer.Swap(&value1)
-	expect("9", t, nonePointer.IsNone(), false)
-
-	value, err = nonePointer.Value()
-	expect("10", t, err, nil)
-	expect("11", t, value, &value1)
-
-	value3, err := somePointer.Take()
-	expect("12", t, err, nil)
-	expect("13", t, *value3, &value2)
-	expect("14", t, somePointer.IsNone(), true)
-
-	swapped = somePointer.Swap(nil)
-	expect("7.1", t, swapped, nil)
-
-	value, err = somePointer.Value()
-	expect("7", t, err, ErrNoneOptional)
-	expect("8", t, value, nil)
-
-	intptr := &value2
-	nested := &intptr
-
-	t.Logf("intptr: %p, nested: %p, &nested: %p", intptr, nested, &nested)
-
-	ptrptrOption := ChainedSome[***int](&nested)
-
-	expect("15", t, ptrptrOption.IsNone(), false)
-
-	valueptr, err := ptrptrOption.Value()
-	expect("16", t, valueptr, &nested)
-	expect("17", t, err, nil)
-
-	fmt.Println("---------------")
-	intptr = nil
-	valueptr, err = ptrptrOption.Value()
-	expect("18", t, ptrptrOption.IsNone(), true)
-}
-
-func expect[T comparable](tag string, t *testing.T, lhs T, rhs T) {
-	if lhs != rhs {
-		t.Errorf("%s\tlhs: %v, rhs: %v", tag, lhs, rhs)
-		return
+	optional := SimpleSome(noneSlice)
+	if optional.IsNone() {
+		t.Error("Unexpected None")
 	}
-	// t.Logf("%s passed", tag)
+
+	slice := optional.Must()
+	slice = append(slice, 1)
+	optional.Swap(slice)
+
+	optional.With(func(slice []int) {
+		t.Log(slice)
+	})
+
+	noneSlice = nil
+
+	optional2 := ChainedSome(&noneSlice)
+	if optional.IsNone() {
+		t.Error("Unexpected None")
+	}
+
+	slice2 := optional2.Must()
+	*slice2 = append(*slice2, 15)
+
+	optional2.With(func(slice2 *[]int) {
+		t.Log(*slice2)
+	})
+}
+
+func TestPointerTypes(t *testing.T) {
+	ShouldPanic(t, func() {
+		var m map[int]int
+		_ = SimpleSome(m)
+	}, true)
+
+	m := make(map[int]int)
+	mapOptional := SimpleSome(m)
+
+	m[1] = 2
+	m2 := mapOptional.Must()
+	for k, v := range m2 {
+		t.Log(k, v)
+	}
+
+	// ------------
+
+	ShouldPanic(t, func() {
+		var opt Optional[int] = nil
+		_ = ChainedSome(opt)
+	}, true)
+
+	var opt Optional[int] = SimpleNone[int]()
+	interfaceOptional := ChainedSome(opt)
+
+	opt2 := interfaceOptional.Must()
+	if !opt2.IsNone() {
+		t.Error("Unexpected Some")
+	}
+
+	// ------------
+
+	ShouldPanic(t, func() {
+		var ch chan int = nil
+		_ = ChainedSome(ch)
+	}, true)
+
+	ch := make(chan int)
+	go func() {
+		ch <- 15
+	}()
+
+	chOptional := SimpleSome(ch)
+	if chOptional.IsNone() {
+		t.Error("Unexpected None")
+	}
+
+	chOptional.With(func(c chan int) {
+		t.Log("Received message from c:", <-c)
+	})
+
+	c := chOptional.Must()
+	go func() {
+		t.Log("Received message from c:", <-c)
+	}()
+	c <- 28
+}
+
+func ShouldPanic(t *testing.T, fn func(), p bool) {
+	defer func() {
+		panicked := false
+		if err := recover(); err != nil {
+			panicked = true
+			if !p {
+				t.Fatal("Panicked when not expected:", err)
+			}
+			t.Log("Recovered from an expected panic")
+		}
+		if !panicked && p {
+			t.Fatal("Panic did not happen when expected")
+		}
+	}()
+	fn()
 }

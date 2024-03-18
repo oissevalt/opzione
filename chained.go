@@ -1,6 +1,7 @@
 package opzione
 
 import (
+	"fmt"
 	"reflect"
 )
 
@@ -27,8 +28,11 @@ type Chained[T any] struct {
 // a nil pointer, or a nested pointer to nil, with nil slices being an exception.
 func ChainedSome[T any](v T) *Chained[T] {
 	val, ok := isptr(v)
+	if !val.IsValid() {
+		panic("nil pointer or other invalid value cannot be used to construct Some")
+	}
 	if ok {
-		if val.IsNil() || isnil(val) {
+		if val.IsNil() || dereftonil(val) {
 			panic("nil pointer cannot be used to construct Some")
 		}
 	}
@@ -55,7 +59,7 @@ func (c *Chained[T]) IsNone() bool {
 		if !ok {
 			c.checkptr = false
 		}
-		return ok && (val.IsNil() || isnil(val))
+		return ok && (val.IsNil() || dereftonil(val))
 	}
 }
 
@@ -93,7 +97,7 @@ func (c *Chained[T]) Swap(v T) (t T) {
 				c.empty = true
 			} else {
 				c.v = &v
-				c.empty = isnil(val)
+				c.empty = dereftonil(val)
 			}
 		}
 		c.checkptr = ok
@@ -144,7 +148,7 @@ func isptr[T any](v T) (val reflect.Value, b bool) {
 	}
 }
 
-func isnil(val reflect.Value) bool {
+func dereftonil(val reflect.Value) bool {
 	switch val.Kind() {
 	case reflect.Pointer:
 		pointed := val.Elem()
@@ -154,13 +158,21 @@ func isnil(val reflect.Value) bool {
 		switch pointed.Kind() {
 		case reflect.Func, reflect.Map, reflect.Chan:
 			return pointed.IsNil()
-		case reflect.Pointer, reflect.Interface:
-			return isnil(pointed.Elem())
+		case reflect.Interface:
+			if !pointed.IsValid() {
+				return true
+			}
+			fallthrough
+		case reflect.Pointer:
+			return dereftonil(pointed.Elem())
 		default:
 			return false
 		}
-	case reflect.Func, reflect.Map, reflect.Chan, reflect.Interface:
+	case reflect.Func, reflect.Map, reflect.Chan:
+		fmt.Println("Type:", val.Kind(), "IsNil:", val.IsNil())
 		return val.IsNil()
+	case reflect.Interface:
+		return !val.IsValid()
 	case reflect.Invalid:
 		return true
 	default:

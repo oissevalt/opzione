@@ -21,6 +21,9 @@ type Simple[T interface{}] struct {
 // a nil pointer, with nil slices being an exception.
 func SimpleSome[T interface{}](v T) *Simple[T] {
 	val, ok := isptr(v)
+	if !val.IsValid() {
+		panic("nil pointer or other invalid value cannot be used to construct Some")
+	}
 	if ok {
 		if val.IsNil() {
 			panic("nil pointer cannot be used to construct Some")
