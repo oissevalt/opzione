@@ -1,8 +1,11 @@
 package opzione
 
-// Simple is an optional type best for value types. For pointer types,
-// it only checks whether the single pointer it stores is nil, with no guards
-// towards nested pointers. For nested pointers, consider using Chained.
+import "reflect"
+
+// Simple is an optional type best for value types and simple pointers.
+// For pointer types, it only checks whether the single pointer it stores
+// is nil, with no guards towards nested pointers. For nested pointers,
+// consider using Chained.
 //
 //	a := 10
 //	p1 := &a
@@ -12,7 +15,6 @@ package opzione
 //	p1 = nil
 //	println(opt.IsNone()) // false
 type Simple[T interface{}] struct {
-	empty  bool
 	ptrtyp bool
 	v      *T
 }
@@ -21,11 +23,12 @@ type Simple[T interface{}] struct {
 // a nil pointer, with nil slices being an exception.
 func SimpleSome[T interface{}](v T) *Simple[T] {
 	val, ok := isptr(v)
-	if !val.IsValid() {
-		panic("nil pointer or other invalid value cannot be used to construct Some")
-	}
 	if ok {
-		if val.IsNil() {
+		if val.Kind() == reflect.UnsafePointer {
+			if val.UnsafePointer() == nil {
+				panic("nil pointer cannot be used to construct Some")
+			}
+		} else if val.IsNil() {
 			panic("nil pointer cannot be used to construct Some")
 		}
 	}
@@ -36,13 +39,19 @@ func SimpleSome[T interface{}](v T) *Simple[T] {
 func SimpleNone[T interface{}]() *Simple[T] {
 	var v T
 	_, ok := isptr(v)
-	return &Simple[T]{empty: true, ptrtyp: ok}
+	return &Simple[T]{ptrtyp: ok}
 }
 
 // IsNone reports whether the current optional contains no value, or merely
 // a nil pointer.
 func (s *Simple[T]) IsNone() bool {
-	return s.empty || s.v == nil
+	if s.v == nil {
+		return true
+	}
+	if s.ptrtyp {
+		return reflect.ValueOf(*s.v).IsNil()
+	}
+	return false
 }
 
 // Value attempts to retrieve the contained value. If the optional contains no value,
@@ -70,16 +79,7 @@ func (s *Simple[T]) Swap(v T) (t T) {
 	if !s.IsNone() {
 		t = *s.v
 	}
-
-	if s.ptrtyp {
-		val, _ := isptr(v)
-		if val.IsNil() {
-			s.v, s.empty = nil, true
-			return
-		}
-	}
-
-	s.v, s.empty = &v, false
+	s.v = &v
 	return
 }
 
@@ -91,7 +91,7 @@ func (s *Simple[T]) Take() (*T, error) {
 		return nil, ErrNoneOptional
 	}
 	t := s.v
-	s.v, s.empty = nil, true
+	s.v = nil
 	return t, nil
 }
 

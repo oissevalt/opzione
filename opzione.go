@@ -67,7 +67,7 @@ func NewOptional[T any](v T) Optional[T] {
 
 	if vtyp.Elem().Kind() == reflect.Pointer {
 		// Chained
-		if rawptr == nil || dereftonil(val) {
+		if rawptr == nil || isnil(val) {
 			return ChainedNone[T]()
 		}
 		return ChainedSome(v)

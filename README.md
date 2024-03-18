@@ -9,11 +9,11 @@ go get github.com/oissevalt/opzione
 The package provides two basic optional types (containers), `Simple` and `Chained`.
 
 > [!WARNING]  
-> This package's content, API, and behaviour have not yet been stabilized.
+> This package's content, and behaviour have not yet been stabilized. Bugs and vulnerabilities may also be present.
 
 ## Simple
 
-`Simple` is the basic implementation of optional value. However, for pointer types, `Simple` only checks if the pointer it currently stores is `nil`, reporting the optional value is present, even if the stored pointer points to `nil`.
+`Simple` is the basic implementation of optional value. However, for pointer types, `Simple` only checks if the pointer it currently stores is `nil`. Thus, for nested pointers, calling `IsNone` only reflects the nil-ness of the shallowest reference.
 
 ```go
 package main
@@ -39,7 +39,7 @@ func main() {
 
 In the above example, `&numptr` is ultimately deferenced to `nil`, which can still cause a runtime panic, especially when `IsNone` confidently reports `false`.
 
-Therefore, `Simple` is preferred when you only need to work with value types or single pointers.
+Therefore, `Simple` is preferred when you only need to work with value types or simple pointers.
 
 ## Chained
 
@@ -66,9 +66,9 @@ func main() {
 }
 ```
 
-Note that the use of reflection can introduce additional operation time and memory usage, but best effort has been made to minimize such impact. According to benchmark (`opzione_test.go`), a sequence of operation on nested pointers took less than 300ns on average.
+Note that the use of reflection can introduce additional operation time and memory usage, but best effort has been made to minimize such impact. According to benchmark (`opzione_test.go`), a sequence of operation on nested pointers took less than 200ns on average.
 
-For value types and single pointers, `Chained` is expected to behave the same as `Simple`.
+For value types and single pointers, `Chained` is expected to behave the same as `Simple`. `Chained` does _not_ track unsafe pointers, either, because they can be arbitrarily manipulated and interpreted; there is no stable way to monitor them.
 
 ## Optional
 

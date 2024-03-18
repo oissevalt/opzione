@@ -14,52 +14,75 @@ import (
 //	p = nil
 //	println(opt.IsNone()) // true
 //
-// This is achieved using reflection, which may introduce overhead compared
+// The tracking achieved using reflection, which may introduce overhead compared
 // with Simple, but best effort has been made to keep the use of reflection
-// to minimum. For value types, Chained behaves the same as Simple.
+// to minimum.
+//
+// For value types, Chained skips reflection-powered nil checks, and is expected
+// to behave the same as Simple. Chained does not track unsafe pointers, either,
+// as they can be manipulated and interpreted arbitrarily.
 type Chained[T any] struct {
-	empty    bool
-	v        *T
-	checkptr bool
+	v      *T
+	ptrtyp bool
+	track  bool
 }
 
 // ChainedSome constructs a Chained optional with value. It panics if v is
 // a nil pointer, or a nested pointer to nil, with nil slices being an exception.
 func ChainedSome[T any](v T) *Chained[T] {
 	val, ok := isptr(v)
-	if !val.IsValid() {
-		panic("nil pointer or other invalid value cannot be used to construct Some")
-	}
 	if ok {
-		if val.IsNil() || dereftonil(val) {
+		if isnil(val) {
 			panic("nil pointer cannot be used to construct Some")
 		}
+		switch val.Kind() {
+		case reflect.UnsafePointer:
+			// Only responsible for the topmost reference.
+			return &Chained[T]{v: &v, ptrtyp: true, track: false}
+		case reflect.Pointer, reflect.Interface:
+			// If v is a simple pointer, there is no need to resort to
+			// reflection.
+			tr := isptrkind(val.Elem().Kind())
+			return &Chained[T]{v: &v, ptrtyp: true, track: tr}
+		default:
+			return &Chained[T]{v: &v, ptrtyp: true, track: true}
+		}
 	}
-	return &Chained[T]{v: &v, checkptr: ok}
+	return &Chained[T]{v: &v, ptrtyp: false, track: false}
 }
 
 // ChainedNone constructs an optional with no value.
 func ChainedNone[T any]() *Chained[T] {
-	var defaultValue T
-	_, ok := isptr(defaultValue)
-	return &Chained[T]{empty: true, checkptr: ok}
+	var t T
+	val, ok := isptr(t)
+	if ok {
+		switch val.Kind() {
+		case reflect.UnsafePointer:
+			return &Chained[T]{ptrtyp: true, track: false}
+		case reflect.Pointer, reflect.Interface:
+			tr := isptrkind(val.Elem().Kind())
+			return &Chained[T]{ptrtyp: true, track: tr}
+		default:
+			return &Chained[T]{ptrtyp: true, track: true}
+		}
+	}
+	return &Chained[T]{track: false}
 }
 
 // IsNone reports whether the current optional contains no value, merely
 // a nil pointer, or nested pointers to a nil reference.
 func (c *Chained[T]) IsNone() bool {
-	if c.empty || c.v == nil {
+	if c.v == nil {
 		return true
-	} else {
-		if !c.checkptr {
-			return false
-		}
-		val, ok := isptr(*c.v)
-		if !ok {
-			c.checkptr = false
-		}
-		return ok && (val.IsNil() || dereftonil(val))
 	}
+	if c.ptrtyp {
+		val := reflect.ValueOf(*c.v)
+		if c.track {
+			return isnil(val)
+		}
+		return val.IsNil()
+	}
+	return false
 }
 
 // Value attempts to retrieve the contained value. If the optional contains no value,
@@ -87,24 +110,11 @@ func (c *Chained[T]) Swap(v T) (t T) {
 	if !c.IsNone() {
 		t = *c.v
 	}
-
-	if c.checkptr {
-		val, ok := isptr(v)
-		if ok {
-			if val.IsNil() {
-				c.v = nil
-				c.empty = true
-			} else {
-				c.v = &v
-				c.empty = dereftonil(val)
-			}
-		}
-		c.checkptr = ok
-	} else {
-		c.v = &v
-		c.empty = false
-	}
-
+	// The value is accepted anyway, in case of pointer loss.
+	//  var v importantNilType
+	//  p := &v
+	//  opt.Swap(p) // not good to lose reference to v
+	c.v = &v
 	return
 }
 
@@ -116,7 +126,7 @@ func (c *Chained[T]) Take() (*T, error) {
 		return nil, ErrNoneOptional
 	}
 	p := c.v
-	c.v, c.empty = nil, true
+	c.v = nil
 	return p, nil
 }
 
@@ -137,43 +147,52 @@ func (c *Chained[T]) Assign(p **T) bool {
 	return true
 }
 
-func isptr[T any](v T) (val reflect.Value, b bool) {
-	val = reflect.ValueOf(v)
-	switch val.Kind() {
-	case reflect.Chan, reflect.Func, reflect.Pointer, reflect.Map, reflect.Interface:
-		return val, true
-	default:
-		return
+func isptr[T any](t T) (reflect.Value, bool) {
+	val := reflect.ValueOf(t)
+	if !val.IsValid() {
+		panic("cannot determine t; invalid value detected")
 	}
+	return val, isptrkind(val.Kind())
 }
 
-func dereftonil(val reflect.Value) bool {
+func isptrkind(kind reflect.Kind) bool {
+	return kind == reflect.UnsafePointer ||
+		kind == reflect.Pointer ||
+		kind == reflect.Func ||
+		kind == reflect.Map ||
+		kind == reflect.Chan ||
+		kind == reflect.Interface
+}
+
+func isnil(val reflect.Value) bool {
+	if !val.IsValid() {
+		// val is constructed from empty Value{}, nil, or is corrupted.
+		return true
+	}
+
 	switch val.Kind() {
+	case reflect.UnsafePointer:
+		// An unsafe pointer can be anything; the package is only responsible
+		// for checking the shallowest reference.
+		return val.UnsafePointer() == nil
 	case reflect.Pointer:
-		pointed := val.Elem()
-		if !pointed.IsValid() {
+		elem := val.Elem()
+		if !elem.IsValid() {
+			// The pointer dereferences to nil; p := &i where i is nil.
 			return true
 		}
-		switch pointed.Kind() {
-		case reflect.Func, reflect.Map, reflect.Chan:
-			return pointed.IsNil()
-		case reflect.Interface:
-			if !pointed.IsValid() {
-				return true
-			}
-			fallthrough
-		case reflect.Pointer:
-			return dereftonil(pointed.Elem())
-		default:
-			return false
-		}
-	case reflect.Func, reflect.Map, reflect.Chan:
+		// Continue this process with the pointed object.
+		return isnil(elem)
+	case reflect.Func, reflect.Map, reflect.Chan, reflect.Interface:
+		// These are pointer-like types. They can be nil and calling a nil
+		// value may trigger a runtime panic.
 		return val.IsNil()
-	case reflect.Interface:
-		return !val.IsValid()
-	case reflect.Invalid:
-		return true
+	case reflect.Slice:
+		// A nil slice is safe to use. In the context of this package, we
+		// don't consider it purely "nil" as opposed to a pointer.
+		return false
 	default:
+		// Value types; cannot be nil.
 		return false
 	}
 }

@@ -2,12 +2,122 @@ package opzione
 
 import (
 	"os"
+	"reflect"
 	"testing"
+	"time"
 )
 
 // Interface assertions
 var _ Optional[int] = &Simple[int]{}
 var _ Optional[int] = &Chained[int]{}
+
+func BenchmarkNestedPointer(b *testing.B) {
+	var model struct {
+		name      string
+		count     int
+		addresses []string
+		body      struct {
+			content string
+			ref     time.Time
+		}
+		kvs map[int]string
+	}
+	model.name = "model"
+	model.count = 13
+	model.addresses = []string{"_1", "_2", "_4"}
+	model.body = struct {
+		content string
+		ref     time.Time
+	}{os.TempDir(), time.Now()}
+	model.kvs = map[int]string{2: "ad", 4: "bc"}
+
+	for i := 0; i < b.N; i++ {
+		ref := &model
+		ref2 := &model
+
+		optional := ChainedSome(&ref)
+		if optional.IsNone() {
+			b.Fatal("Unexpected None")
+		}
+
+		val := optional.Must()
+		if val == nil {
+			b.Fatal("Unexpected nil")
+		}
+
+		ref = nil
+		if !optional.IsNone() {
+			b.Fatal("Unexpected Some")
+		}
+
+		optional.Swap(&ref2)
+		if optional.IsNone() {
+			b.Fatal("Unexpected None")
+		}
+
+		run := false
+		optional.With(func(s **struct {
+			name      string
+			count     int
+			addresses []string
+			body      struct {
+				content string
+				ref     time.Time
+			}
+			kvs map[int]string
+		}) {
+			run = true
+		})
+		if !run {
+			b.Fatal("Closure not run")
+		}
+	}
+}
+
+func TestNewOptional(t *testing.T) {
+	v1 := 32
+	o1 := NewOptional(v1)
+	if s, ok := o1.(*Simple[int]); !ok {
+		t.Fatal("o1:", reflect.TypeOf(o1))
+	} else {
+		_ = s.Must()
+	}
+
+	v2 := (*int)(nil)
+	o2 := NewOptional(v2)
+	if _, ok := o2.(*Simple[*int]); !ok {
+		t.Fatal("o1:", reflect.TypeOf(o1))
+	} else if !o2.IsNone() {
+		t.FailNow()
+	}
+
+	v3 := []int(nil)
+	o3 := NewOptional(v3)
+	if s, ok := o3.(*Simple[[]int]); !ok {
+		t.Fatal("o1:", reflect.TypeOf(o1))
+	} else {
+		_ = s.Must()
+	}
+
+	n := 10
+
+	v4 := &n
+	o4 := NewOptional(&v4)
+	if s, ok := o4.(*Chained[**int]); !ok {
+		t.Fatal("o1:", reflect.TypeOf(o1))
+	} else {
+		_ = s.Must()
+	}
+
+	v5 := &n
+	v5 = nil
+	o5 := NewOptional(&v5)
+	if _, ok := o5.(*Chained[**int]); !ok {
+		t.Fatal("o1:", reflect.TypeOf(o1))
+	} else if !o5.IsNone() {
+		t.FailNow()
+	}
+}
 
 func TestValueTypes(t *testing.T) {
 	option := SimpleSome(12)
