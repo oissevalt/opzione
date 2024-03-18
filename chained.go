@@ -1,7 +1,6 @@
 package opzione
 
 import (
-	"fmt"
 	"reflect"
 )
 
@@ -169,7 +168,6 @@ func dereftonil(val reflect.Value) bool {
 			return false
 		}
 	case reflect.Func, reflect.Map, reflect.Chan:
-		fmt.Println("Type:", val.Kind(), "IsNil:", val.IsNil())
 		return val.IsNil()
 	case reflect.Interface:
 		return !val.IsValid()
