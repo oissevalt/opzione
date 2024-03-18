@@ -48,33 +48,22 @@ type Optional[T interface{}] interface {
 //   - ChainedNone: T is a nested pointer type, and t is nil or deferences to nil.
 func NewOptional[T any](v T) Optional[T] {
 	val := reflect.ValueOf(v)
-	if val.Kind() != reflect.Pointer {
-		switch val.Kind() {
-		case reflect.Chan, reflect.Func, reflect.Map, reflect.Interface:
-			// These types and slices are treated somewhat like pointers.
-			// Slice is not listed because nil slice is also valid.
-			if val.IsNil() {
-				return SimpleNone[T]()
-			}
-			return SimpleSome(v)
-		default:
-			return SimpleSome(v)
+	if !isptrkind(val.Kind()) {
+		return &Simple[T]{v: &v}
+	}
+
+	switch val.Kind() {
+	case reflect.UnsafePointer:
+		// Only responsible for the topmost reference.
+		return &Simple[T]{v: &v, ptrtyp: true}
+	case reflect.Pointer, reflect.Interface:
+		// If v is a simple pointer, there is no need to resort to
+		// reflection.
+		if !isptrkind(val.Elem().Kind()) {
+			return &Simple[T]{v: &v, ptrtyp: true}
 		}
+		return &Chained[T]{v: &v, ptrtyp: true, track: true}
+	default:
+		return &Simple[T]{v: &v, ptrtyp: true}
 	}
-
-	rawptr := val.UnsafePointer()
-	vtyp := val.Type()
-
-	if vtyp.Elem().Kind() == reflect.Pointer {
-		// Chained
-		if rawptr == nil || isnil(val) {
-			return ChainedNone[T]()
-		}
-		return ChainedSome(v)
-	}
-
-	if rawptr == nil {
-		return SimpleNone[T]()
-	}
-	return SimpleSome(v)
 }

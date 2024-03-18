@@ -86,15 +86,15 @@ func TestNewOptional(t *testing.T) {
 	v2 := (*int)(nil)
 	o2 := NewOptional(v2)
 	if _, ok := o2.(*Simple[*int]); !ok {
-		t.Fatal("o1:", reflect.TypeOf(o1))
+		t.Fatal("o2:", reflect.TypeOf(o2))
 	} else if !o2.IsNone() {
-		t.FailNow()
+		t.Fatal("o2 is not none")
 	}
 
 	v3 := []int(nil)
 	o3 := NewOptional(v3)
 	if s, ok := o3.(*Simple[[]int]); !ok {
-		t.Fatal("o1:", reflect.TypeOf(o1))
+		t.Fatal("o3:", reflect.TypeOf(o3))
 	} else {
 		_ = s.Must()
 	}
@@ -104,7 +104,7 @@ func TestNewOptional(t *testing.T) {
 	v4 := &n
 	o4 := NewOptional(&v4)
 	if s, ok := o4.(*Chained[**int]); !ok {
-		t.Fatal("o1:", reflect.TypeOf(o1))
+		t.Fatal("o4:", reflect.TypeOf(o4))
 	} else {
 		_ = s.Must()
 	}
@@ -113,9 +113,9 @@ func TestNewOptional(t *testing.T) {
 	v5 = nil
 	o5 := NewOptional(&v5)
 	if _, ok := o5.(*Chained[**int]); !ok {
-		t.Fatal("o1:", reflect.TypeOf(o1))
+		t.Fatal("o5:", reflect.TypeOf(o5))
 	} else if !o5.IsNone() {
-		t.FailNow()
+		t.Fatal("o5 is not none")
 	}
 }
 
