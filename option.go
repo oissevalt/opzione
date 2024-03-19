@@ -14,12 +14,12 @@ import (
 //	p = nil
 //	println(opt.IsNone()) // true
 //
-// The tracking achieved using reflection, which may introduce overhead compared
-// with Simple, but best effort has been made to keep the use of reflection
-// to minimum.
+// The tracking achieved using reflection, which may introduce overhead,
+// but best effort has been made to keep the use of reflection to minimum.
 //
-// For value types, Option skips reflection-powered nil checks. Option does not
-// track unsafe pointers, either, as they can be manipulated and interpreted arbitrarily.
+// For value types and single pointers, Option skips recursive nil checks.
+// Option does not track unsafe pointers, either, as they can be manipulated
+// and interpreted arbitrarily.
 type Option[T any] struct {
 	v      *T
 	ptrtyp bool
@@ -51,7 +51,8 @@ func (o *Option[T]) Value() (t T, err error) {
 	return *o.v, nil
 }
 
-// Unwrap returns the contained value, panicking if the Option is None.
+// Unwrap returns the contained value, panicking if the Option contains no
+// meaningful value.
 func (o *Option[T]) Unwrap() T {
 	if o.IsNone() {
 		panic(ErrNoneOptional)
