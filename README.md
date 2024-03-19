@@ -6,44 +6,14 @@ _Opzione_ (Italian "option") is a Go library for optionals, with tracking of nes
 go get github.com/oissevalt/opzione
 ```
 
-The package provides two basic optional types (containers), `Simple` and `Chained`. It works by dynamically checking whether the containers contain meaningful values, which in most cases means not being `nil`. An exception are slices, as `nil` slices are safe to work with. Value types will never be none, except when the optional is constructed by calling `XXXNone`, or its value is moved out with `Take`.
+The package provides the optional type (container), `Option`. It works by dynamically checking whether the containers contain meaningful values, which in most cases means not being `nil`. An exception are slices, as `nil` slices are safe to work with. Value types will never be considered none, except when the optional is constructed by calling `None`, or its value is moved out with `Take`.
 
 > [!WARNING]
 > This package's content, and behaviour have not yet been stabilized. Bugs and vulnerabilities may also be present.
 
-## Simple
+## Option
 
-`Simple` is the basic implementation of a generic container of optional value. However, for pointer types, `Simple` only checks if the pointer it stores is `nil`. Thus, for nested pointers, `IsNone` only reflects the nil-ness of the shallowest reference.
-
-```go
-package main
-
-import (
-	"fmt"
-
-	"github.com/oissevalt/opzione"
-)
-
-func main() {
-	// Background information: a pointer to nil isn't nil.
-	number := 10
-	numptr := &number
-
-	optional := opzione.SimpleSome(&numptr)
-	fmt.Println(optional.IsNone()) // false
-	
-	numptr = nil // but &numptr is NOT nil
-	fmt.Println(optional.IsNone()) // false
-}
-```
-
-In the above example, `&numptr` is ultimately deferenced to `nil`, which can still cause a runtime panic, despite `optional.IsNone()` confidently reports `false`.
-
-Therefore, `Simple` is preferred when you only need to work with value types or simple pointers.
-
-## Chained
-
-`Chained` is another optional container. It tracks nested pointers using runtime reflection. This way, it is able to report whether the nested pointers deference to `nil`, or a pointer is modified to be `nil` afterwards.
+For pointer types, `Option` does not only checks if the pointer it stores is nil, but also tracks nested pointers using runtime reflection. This way, it is able to report whether some nested pointers deference to `nil`, or a pointer is modified to be `nil` after `Option` wraps it.
 
 ```go
 package main
@@ -58,17 +28,17 @@ func main() {
 	number := 10
 	numptr := &number
 
-	optional := opzione.ChainedSome(&numptr)
-	fmt.Println(optional.IsNone()) // false
+	option := opzione.Some(&numptr)
+	fmt.Println(option.IsNone()) // false
 	
 	numptr = nil
-	fmt.Println(optional.IsNone()) // true
+	fmt.Println(option.IsNone()) // true
 }
 ```
 
 Note that the use of reflection can introduce additional time cost and memory usage, but best effort has been made to minimize such impact. According to benchmark (`opzione_test.go`), a sequence of operation on nested pointers took less than 200ns on average.
 
-For value types and single pointers, `Chained` is expected to behave the same as `Simple`. `Chained` does _not_ track unsafe pointers, either, because they can be arbitrarily manipulated and interpreted; there is no stable way to monitor them.
+For value types and single pointers, `Option` does not enable tracking, and only checks the shallowest reference. It does _not_ track unsafe pointers, either, because they can be arbitrarily manipulated and interpreted; there is no stable way to monitor them.
 
 ## Optional
 

@@ -2,14 +2,12 @@ package opzione
 
 import (
 	"os"
-	"reflect"
 	"testing"
 	"time"
 )
 
 // Interface assertions
-var _ Optional[int] = &Simple[int]{}
-var _ Optional[int] = &Chained[int]{}
+var _ Optional[int] = &Option[int]{}
 
 func BenchmarkNestedPointer(b *testing.B) {
 	var model struct {
@@ -35,12 +33,12 @@ func BenchmarkNestedPointer(b *testing.B) {
 		ref := &model
 		ref2 := &model
 
-		optional := ChainedSome(&ref)
+		optional := Some(&ref)
 		if optional.IsNone() {
 			b.Fatal("Unexpected None")
 		}
 
-		val := optional.Must()
+		val := optional.Unwrap()
 		if val == nil {
 			b.Fatal("Unexpected nil")
 		}
@@ -74,53 +72,8 @@ func BenchmarkNestedPointer(b *testing.B) {
 	}
 }
 
-func TestNewOptional(t *testing.T) {
-	v1 := 32
-	o1 := NewOptional(v1)
-	if s, ok := o1.(*Simple[int]); !ok {
-		t.Fatal("o1:", reflect.TypeOf(o1))
-	} else {
-		_ = s.Must()
-	}
-
-	v2 := (*int)(nil)
-	o2 := NewOptional(v2)
-	if _, ok := o2.(*Simple[*int]); !ok {
-		t.Fatal("o2:", reflect.TypeOf(o2))
-	} else if !o2.IsNone() {
-		t.Fatal("o2 is not none")
-	}
-
-	v3 := []int(nil)
-	o3 := NewOptional(v3)
-	if s, ok := o3.(*Simple[[]int]); !ok {
-		t.Fatal("o3:", reflect.TypeOf(o3))
-	} else {
-		_ = s.Must()
-	}
-
-	n := 10
-
-	v4 := &n
-	o4 := NewOptional(&v4)
-	if s, ok := o4.(*Chained[**int]); !ok {
-		t.Fatal("o4:", reflect.TypeOf(o4))
-	} else {
-		_ = s.Must()
-	}
-
-	v5 := &n
-	v5 = nil
-	o5 := NewOptional(&v5)
-	if _, ok := o5.(*Chained[**int]); !ok {
-		t.Fatal("o5:", reflect.TypeOf(o5))
-	} else if !o5.IsNone() {
-		t.Fatal("o5 is not none")
-	}
-}
-
 func TestValueTypes(t *testing.T) {
-	option := SimpleSome(12)
+	option := Some(12)
 	if option.IsNone() {
 		t.Error("Unexpected None")
 	}
@@ -130,13 +83,13 @@ func TestValueTypes(t *testing.T) {
 		err   error
 	)
 
-	value = option.Must()
+	value = option.Unwrap()
 	if value != 12 {
 		t.Error("Unexpected value:", value)
 	}
 
 	swapped := option.Swap(24)
-	value = option.Must()
+	value = option.Unwrap()
 	if swapped != 12 {
 		t.Error("Unexpected swapped value:", swapped)
 	}
@@ -182,16 +135,16 @@ func TestSimplePointers(t *testing.T) {
 	defer file.Close()
 
 	ShouldPanic(t, func() {
-		option := SimpleSome[*os.File](nil)
+		option := Some[*os.File](nil)
 		_ = option
 	}, true)
 
-	option := SimpleSome(file)
+	option := Some(file)
 	if option.IsNone() {
 		t.Error("Unexpected None")
 	}
 
-	file2 := option.Must()
+	file2 := option.Unwrap()
 	if file2.Name() != "go.mod" {
 		t.Fatal("Unexpected file object:", file2.Name())
 	}
@@ -222,17 +175,17 @@ func TestChainedOptional(t *testing.T) {
 	nilptr := (**int)(nil)
 
 	ShouldPanic(t, func() {
-		optional := ChainedSome[**int](nil)
+		optional := Some[**int](nil)
 		_ = optional
 	}, true)
 
 	ShouldPanic(t, func() {
 		ptr := &nilptr
-		optional := ChainedSome(ptr)
+		optional := Some(ptr)
 		_ = optional
 	}, true)
 
-	optional := ChainedSome(&numptr)
+	optional := Some(&numptr)
 	if optional.IsNone() {
 		t.Error("Unexpected None")
 	}
@@ -242,7 +195,7 @@ func TestChainedOptional(t *testing.T) {
 		err   error
 	)
 
-	value = optional.Must()
+	value = optional.Unwrap()
 	if **value != 10 {
 		t.Error("Unexpected pointer:", **value)
 	}
@@ -279,12 +232,12 @@ func TestChainedOptional(t *testing.T) {
 func TestSlices(t *testing.T) {
 	noneSlice := []int(nil)
 
-	optional := SimpleSome(noneSlice)
+	optional := Some(noneSlice)
 	if optional.IsNone() {
 		t.Error("Unexpected None")
 	}
 
-	slice := optional.Must()
+	slice := optional.Unwrap()
 	slice = append(slice, 1)
 	optional.Swap(slice)
 
@@ -294,12 +247,12 @@ func TestSlices(t *testing.T) {
 
 	noneSlice = nil
 
-	optional2 := ChainedSome(&noneSlice)
+	optional2 := Some(&noneSlice)
 	if optional.IsNone() {
 		t.Error("Unexpected None")
 	}
 
-	slice2 := optional2.Must()
+	slice2 := optional2.Unwrap()
 	*slice2 = append(*slice2, 15)
 
 	optional2.With(func(slice2 *[]int) {
@@ -310,14 +263,14 @@ func TestSlices(t *testing.T) {
 func TestPointerTypes(t *testing.T) {
 	ShouldPanic(t, func() {
 		var m map[int]int
-		_ = SimpleSome(m)
+		_ = Some(m)
 	}, true)
 
 	m := make(map[int]int)
-	mapOptional := SimpleSome(m)
+	mapOptional := Some(m)
 
 	m[1] = 2
-	m2 := mapOptional.Must()
+	m2 := mapOptional.Unwrap()
 	for k, v := range m2 {
 		t.Log(k, v)
 	}
@@ -326,13 +279,13 @@ func TestPointerTypes(t *testing.T) {
 
 	ShouldPanic(t, func() {
 		var opt Optional[int] = nil
-		_ = ChainedSome(opt)
+		_ = Some(opt)
 	}, true)
 
-	var opt Optional[int] = SimpleNone[int]()
-	interfaceOptional := ChainedSome(opt)
+	var opt Optional[int] = None[int]()
+	interfaceOptional := Some(opt)
 
-	opt2 := interfaceOptional.Must()
+	opt2 := interfaceOptional.Unwrap()
 	if !opt2.IsNone() {
 		t.Error("Unexpected Some")
 	}
@@ -341,7 +294,7 @@ func TestPointerTypes(t *testing.T) {
 
 	ShouldPanic(t, func() {
 		var ch chan int = nil
-		_ = ChainedSome(ch)
+		_ = Some(ch)
 	}, true)
 
 	ch := make(chan int)
@@ -349,7 +302,7 @@ func TestPointerTypes(t *testing.T) {
 		ch <- 15
 	}()
 
-	chOptional := SimpleSome(ch)
+	chOptional := Some(ch)
 	if chOptional.IsNone() {
 		t.Error("Unexpected None")
 	}
@@ -358,7 +311,7 @@ func TestPointerTypes(t *testing.T) {
 		t.Log("Received message from c:", <-c)
 	})
 
-	c := chOptional.Must()
+	c := chOptional.Unwrap()
 	go func() {
 		t.Log("Received message from c:", <-c)
 	}()

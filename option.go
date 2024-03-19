@@ -4,12 +4,12 @@ import (
 	"reflect"
 )
 
-// Chained is an optional type which not only checks if the stored value
+// Option is an optional type which not only checks if the stored value
 // is present, but also tracks nested references and their changes.
 //
 //	a := 10
 //	p := &a
-//	opt := ChainedSome(&p)
+//	opt := Some(&p)
 //
 //	p = nil
 //	println(opt.IsNone()) // true
@@ -18,60 +18,18 @@ import (
 // with Simple, but best effort has been made to keep the use of reflection
 // to minimum.
 //
-// For value types, Chained skips reflection-powered nil checks, and is expected
-// to behave the same as Simple. Chained does not track unsafe pointers, either,
+// For value types, Option skips reflection-powered nil checks, and is expected
+// to behave the same as Simple. Option does not track unsafe pointers, either,
 // as they can be manipulated and interpreted arbitrarily.
-type Chained[T any] struct {
+type Option[T any] struct {
 	v      *T
 	ptrtyp bool
 	track  bool
 }
 
-// ChainedSome constructs a Chained optional with value. It panics if v is
-// a nil pointer, or a nested pointer to nil, with nil slices being an exception.
-func ChainedSome[T any](v T) *Chained[T] {
-	val, ok := isptr(v)
-	if ok {
-		if isnil(val) {
-			panic("nil pointer cannot be used to construct Some")
-		}
-		switch val.Kind() {
-		case reflect.UnsafePointer:
-			// Only responsible for the topmost reference.
-			return &Chained[T]{v: &v, ptrtyp: true, track: false}
-		case reflect.Pointer, reflect.Interface:
-			// If v is a simple pointer, there is no need to resort to
-			// reflection.
-			tr := isptrkind(val.Elem().Kind())
-			return &Chained[T]{v: &v, ptrtyp: true, track: tr}
-		default:
-			return &Chained[T]{v: &v, ptrtyp: true, track: true}
-		}
-	}
-	return &Chained[T]{v: &v, ptrtyp: false, track: false}
-}
-
-// ChainedNone constructs an optional with no value.
-func ChainedNone[T any]() *Chained[T] {
-	var t T
-	val, ok := isptr(t)
-	if ok {
-		switch val.Kind() {
-		case reflect.UnsafePointer:
-			return &Chained[T]{ptrtyp: true, track: false}
-		case reflect.Pointer, reflect.Interface:
-			tr := isptrkind(val.Elem().Kind())
-			return &Chained[T]{ptrtyp: true, track: tr}
-		default:
-			return &Chained[T]{ptrtyp: true, track: true}
-		}
-	}
-	return &Chained[T]{track: false}
-}
-
 // IsNone reports whether the current optional contains no value, merely
 // a nil pointer, or nested pointers to a nil reference.
-func (c *Chained[T]) IsNone() bool {
+func (c *Option[T]) IsNone() bool {
 	if c.v == nil {
 		return true
 	}
@@ -87,15 +45,15 @@ func (c *Chained[T]) IsNone() bool {
 
 // Value attempts to retrieve the contained value. If the optional contains no value,
 // is a nil pointer, or nested pointers to nil, it will return ErrNoneOptional.
-func (c *Chained[T]) Value() (t T, err error) {
+func (c *Option[T]) Value() (t T, err error) {
 	if c.IsNone() {
 		return t, ErrNoneOptional
 	}
 	return *c.v, nil
 }
 
-// Must returns the contained value, panicking if the optional is None.
-func (c *Chained[T]) Must() T {
+// Unwrap returns the contained value, panicking if the optional is None.
+func (c *Option[T]) Unwrap() T {
 	if c.IsNone() {
 		panic(ErrNoneOptional)
 	}
@@ -106,7 +64,7 @@ func (c *Chained[T]) Must() T {
 // a nil pointer, the current optional will be set to None. Whether the
 // returned value is valid is not guaranteed; if the optional is previously None,
 // it can be the zero value of the type, or nil.
-func (c *Chained[T]) Swap(v T) (t T) {
+func (c *Option[T]) Swap(v T) (t T) {
 	if !c.IsNone() {
 		t = *c.v
 	}
@@ -121,7 +79,7 @@ func (c *Chained[T]) Swap(v T) (t T) {
 // Take moves the inner value out, leaving the optional in a None state.
 // It returns a reference to the contained value, if any. Should the optional
 // previously be None, ErrNoneOptional is returned.
-func (c *Chained[T]) Take() (*T, error) {
+func (c *Option[T]) Take() (*T, error) {
 	if c.IsNone() {
 		return nil, ErrNoneOptional
 	}
@@ -131,15 +89,22 @@ func (c *Chained[T]) Take() (*T, error) {
 }
 
 // With executes the given closure with the contained value, if it is not None.
-func (c *Chained[T]) With(f func(T)) {
+func (c *Option[T]) With(f func(T)) {
 	if !c.IsNone() {
 		f(*c.v)
 	}
 }
 
+// WithNone executes the given closure if the Option contains no value.
+func (c *Option[T]) WithNone(f func()) {
+	if c.IsNone() {
+		f()
+	}
+}
+
 // Assign assigns the inner value of the optional to *p, if the optional is
 // not None. It returns a boolean indicating whether an assignment is made.
-func (c *Chained[T]) Assign(p **T) bool {
+func (c *Option[T]) Assign(p **T) bool {
 	if c.IsNone() {
 		return false
 	}

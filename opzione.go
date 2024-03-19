@@ -16,8 +16,8 @@ type Optional[T interface{}] interface {
 	// it returns ErrNoneOptional.
 	Value() (t T, err error)
 
-	// Must obtains the contained value, and panics if the optional is None.
-	Must() T
+	// Unwrap obtains the contained value, and panics if the optional is None.
+	Unwrap() T
 
 	// Swap swaps value v with the optional's contained value. If the
 	// optional was None, it will become Some. Swap returns the original
@@ -32,38 +32,53 @@ type Optional[T interface{}] interface {
 	// contained value, if it is Some.
 	With(func(T))
 
+	// WithNone executes the given closure, if the optional currently contains
+	// no value.
+	WithNone(func())
+
 	// Assign assigns the optional's contained value to *p, if the optional
 	// is not None.
 	Assign(p **T) bool
 }
 
-// NewOptional returns an optional type, whose specific implementation
-// depends on the generic type T and initial value v.
-//
-//   - SimpleSome: T is a value type or a simple pointer type, and t is not nil.
-//     However, SimpleSome is created for nil slices because they are still valid
-//     (can be called safely with cap, len, or append).
-//   - SimpleNone: T is a simple pointer type, and t is a nil pointer.
-//   - ChainedSome: T is a nested pointer type, and t is not nil.
-//   - ChainedNone: T is a nested pointer type, and t is nil or deferences to nil.
-func NewOptional[T any](v T) Optional[T] {
-	val := reflect.ValueOf(v)
-	if !isptrkind(val.Kind()) {
-		return &Simple[T]{v: &v}
-	}
-
-	switch val.Kind() {
-	case reflect.UnsafePointer:
-		// Only responsible for the topmost reference.
-		return &Simple[T]{v: &v, ptrtyp: true}
-	case reflect.Pointer, reflect.Interface:
-		// If v is a simple pointer, there is no need to resort to
-		// reflection.
-		if !isptrkind(val.Elem().Kind()) {
-			return &Simple[T]{v: &v, ptrtyp: true}
+// Some constructs an Option with value. It panics if v is a nil pointer,
+// or a nested pointer to nil, with nil slices being an exception.
+func Some[T any](v T) *Option[T] {
+	val, ok := isptr(v)
+	if ok {
+		if isnil(val) {
+			panic("nil pointer cannot be used to construct Some")
 		}
-		return &Chained[T]{v: &v, ptrtyp: true, track: true}
-	default:
-		return &Simple[T]{v: &v, ptrtyp: true}
+		switch val.Kind() {
+		case reflect.UnsafePointer:
+			// Only responsible for the topmost reference.
+			return &Option[T]{v: &v, ptrtyp: true, track: false}
+		case reflect.Pointer, reflect.Interface:
+			// If v is a simple pointer, there is no need to resort to
+			// reflection.
+			tr := isptrkind(val.Elem().Kind())
+			return &Option[T]{v: &v, ptrtyp: true, track: tr}
+		default:
+			return &Option[T]{v: &v, ptrtyp: true, track: true}
+		}
 	}
+	return &Option[T]{v: &v, ptrtyp: false, track: false}
+}
+
+// None constructs an Option with no value.
+func None[T any]() *Option[T] {
+	var t T
+	val, ok := isptr(t)
+	if ok {
+		switch val.Kind() {
+		case reflect.UnsafePointer:
+			return &Option[T]{ptrtyp: true, track: false}
+		case reflect.Pointer, reflect.Interface:
+			tr := isptrkind(val.Elem().Kind())
+			return &Option[T]{ptrtyp: true, track: tr}
+		default:
+			return &Option[T]{ptrtyp: true, track: true}
+		}
+	}
+	return &Option[T]{track: false}
 }
