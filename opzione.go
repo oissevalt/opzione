@@ -9,30 +9,32 @@ import (
 var ErrNoneOptional = errors.New("optional value is none")
 
 type Optional[T interface{}] interface {
-	// IsNone reports whether the current optional is None.
+	// IsNone reports whether the current optional contains no meaningful value.
+	// A value is meaningful if it is not a nil pointer or nested pointers that
+	// ultimately dereference to nil.
 	IsNone() bool
 
-	// Value tries to obtain the contained value. If the optional is None,
-	// it returns ErrNoneOptional.
+	// Value tries to obtain the contained value. If the optional contains
+	// no value, it returns ErrNoneOptional.
 	Value() (t T, err error)
 
-	// Unwrap obtains the contained value, and panics if the optional is None.
+	// Unwrap obtains the contained value, and panics if the optional
+	// contains no value.
 	Unwrap() T
 
-	// Swap swaps value v with the optional's contained value. If the
-	// optional was None, it will become Some. Swap returns the original
-	// value, with no guarantee that it will be present.
+	// Swap swaps value v with the optional's contained value. Swap returns
+	// the original value, with no guarantee that it will be present.
 	Swap(v T) T
 
-	// Take attempts to move out the optional's contained value, leaving a
-	// None behind. If the optional is None, it returns ErrNoneOptional.
+	// Take attempts to move out the optional's contained value.
+	// If the optional is None, it returns ErrNoneOptional.
 	Take() (*T, error)
 
 	// With accepts a closure which will be executed with the optional's
-	// contained value, if it is Some.
+	// contained value, only if it contains any.
 	With(func(T))
 
-	// WithNone executes the given closure, if the optional currently contains
+	// WithNone executes the given closure if the optional currently contains
 	// no value.
 	WithNone(func())
 
@@ -41,7 +43,7 @@ type Optional[T interface{}] interface {
 	Assign(p **T) bool
 }
 
-// Some constructs an Option with value. It panics if v is a nil pointer,
+// Some constructs an Option with value. It panics if v is a nil pointer
 // or a nested pointer to nil, with nil slices being an exception.
 func Some[T any](v T) *Option[T] {
 	val, ok := isptr(v)

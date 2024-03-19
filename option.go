@@ -18,24 +18,23 @@ import (
 // with Simple, but best effort has been made to keep the use of reflection
 // to minimum.
 //
-// For value types, Option skips reflection-powered nil checks, and is expected
-// to behave the same as Simple. Option does not track unsafe pointers, either,
-// as they can be manipulated and interpreted arbitrarily.
+// For value types, Option skips reflection-powered nil checks. Option does not
+// track unsafe pointers, either, as they can be manipulated and interpreted arbitrarily.
 type Option[T any] struct {
 	v      *T
 	ptrtyp bool
 	track  bool
 }
 
-// IsNone reports whether the current optional contains no value, merely
-// a nil pointer, or nested pointers to a nil reference.
-func (c *Option[T]) IsNone() bool {
-	if c.v == nil {
+// IsNone reports whether the Option contains no value, or contains merely
+// a nil pointer or nested pointers to a nil reference.
+func (o *Option[T]) IsNone() bool {
+	if o.v == nil {
 		return true
 	}
-	if c.ptrtyp {
-		val := reflect.ValueOf(*c.v)
-		if c.track {
+	if o.ptrtyp {
+		val := reflect.ValueOf(*o.v)
+		if o.track {
 			return isnil(val)
 		}
 		return val.IsNil()
@@ -43,72 +42,75 @@ func (c *Option[T]) IsNone() bool {
 	return false
 }
 
-// Value attempts to retrieve the contained value. If the optional contains no value,
-// is a nil pointer, or nested pointers to nil, it will return ErrNoneOptional.
-func (c *Option[T]) Value() (t T, err error) {
-	if c.IsNone() {
+// Value attempts to retrieve the contained value. If the Option contains no value,
+// is a nil pointer or nested pointers to nil, it will return ErrNoneOptional.
+func (o *Option[T]) Value() (t T, err error) {
+	if o.IsNone() {
 		return t, ErrNoneOptional
 	}
-	return *c.v, nil
+	return *o.v, nil
 }
 
-// Unwrap returns the contained value, panicking if the optional is None.
-func (c *Option[T]) Unwrap() T {
-	if c.IsNone() {
+// Unwrap returns the contained value, panicking if the Option is None.
+func (o *Option[T]) Unwrap() T {
+	if o.IsNone() {
 		panic(ErrNoneOptional)
 	}
-	return *c.v
+	return *o.v
 }
 
 // Swap swaps the contained value with v, returning the original value. If v is
-// a nil pointer, the current optional will be set to None. Whether the
-// returned value is valid is not guaranteed; if the optional is previously None,
-// it can be the zero value of the type, or nil.
-func (c *Option[T]) Swap(v T) (t T) {
-	if !c.IsNone() {
-		t = *c.v
+// a nil pointer or dereferences to nil, the Option will be put in a "none" state
+// such that subsequent calls to IsNone will return true. Whether the returned
+// value is valid is not guaranteed; if the optional previously contains no
+// meaningful value, it can be the zero value of the type, or nil.
+func (o *Option[T]) Swap(v T) (t T) {
+	if !o.IsNone() {
+		t = *o.v
 	}
 	// The value is accepted anyway, in case of pointer loss.
 	//  var v importantNilType
 	//  p := &v
 	//  opt.Swap(p) // not good to lose reference to v
-	c.v = &v
+	o.v = &v
 	return
 }
 
-// Take moves the inner value out, leaving the optional in a None state.
-// It returns a reference to the contained value, if any. Should the optional
-// previously be None, ErrNoneOptional is returned.
-func (c *Option[T]) Take() (*T, error) {
-	if c.IsNone() {
+// Take moves the inner value out, leaving the optional in a "none" state such
+// that subsequent calls to IsNone returns true. It returns a reference to the
+// contained value, if any. Should the optional previously contains no meaningful
+// value, ErrNoneOptional is returned.
+func (o *Option[T]) Take() (*T, error) {
+	if o.IsNone() {
 		return nil, ErrNoneOptional
 	}
-	p := c.v
-	c.v = nil
+	p := o.v
+	o.v = nil
 	return p, nil
 }
 
-// With executes the given closure with the contained value, if it is not None.
-func (c *Option[T]) With(f func(T)) {
-	if !c.IsNone() {
-		f(*c.v)
+// With executes the given closure, if the Option contains a meaningful value,
+// with the contained value.
+func (o *Option[T]) With(f func(T)) {
+	if !o.IsNone() {
+		f(*o.v)
 	}
 }
 
-// WithNone executes the given closure if the Option contains no value.
-func (c *Option[T]) WithNone(f func()) {
-	if c.IsNone() {
+// WithNone executes the given closure only if the Option contains no value.
+func (o *Option[T]) WithNone(f func()) {
+	if o.IsNone() {
 		f()
 	}
 }
 
-// Assign assigns the inner value of the optional to *p, if the optional is
-// not None. It returns a boolean indicating whether an assignment is made.
-func (c *Option[T]) Assign(p **T) bool {
-	if c.IsNone() {
+// Assign assigns the inner value of the Option to *p, if it contains meaningful
+// value. It returns a boolean indicating whether an assignment is made.
+func (o *Option[T]) Assign(p **T) bool {
+	if o.IsNone() {
 		return false
 	}
-	*p = c.v
+	*p = o.v
 	return true
 }
 
