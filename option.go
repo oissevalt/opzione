@@ -21,9 +21,18 @@ import (
 // Option does not track unsafe pointers, either, as they can be manipulated
 // and interpreted arbitrarily.
 type Option[T any] struct {
-	v      *T
-	ptrtyp bool
-	track  bool
+	v       *T
+	ptrtyp  bool
+	track   bool
+	validfn func(T) bool
+}
+
+// Validate adds custom validation logic when deciding whether the Option's
+// inner value is meaningful or not. The value will be considered "none" if
+// f returns true. The validation function is executed only after all nil
+// checks are done.
+func (o *Option[T]) Validate(f func(T) bool) {
+	o.validfn = f
 }
 
 // IsNone reports whether the Option contains no value, or contains merely
@@ -32,12 +41,21 @@ func (o *Option[T]) IsNone() bool {
 	if o.v == nil {
 		return true
 	}
+
+	ok := false
 	if o.ptrtyp {
 		val := reflect.ValueOf(*o.v)
 		if o.track {
-			return isnil(val)
+			ok = isnil(val)
 		}
-		return val.IsNil()
+		ok = val.IsNil()
+	}
+	if ok {
+		return true
+	}
+
+	if o.validfn != nil {
+		return o.validfn(*o.v)
 	}
 	return false
 }

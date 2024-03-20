@@ -72,6 +72,30 @@ func BenchmarkNestedPointer(b *testing.B) {
 	}
 }
 
+func TestOption_Validate(t *testing.T) {
+	file, err := os.Open("go.mod")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	option := Some(file)
+	if option.IsNone() {
+		t.Fatal("Unexpected None")
+	}
+
+	_ = file.Close()
+	if option.IsNone() {
+		t.Fatal("Should not be considered None without validfn")
+	}
+
+	option.Validate(func(file *os.File) bool {
+		return file.Close() != nil
+	})
+	if !option.IsNone() {
+		t.Fatal("Unexpected Some")
+	}
+}
+
 func TestValueTypes(t *testing.T) {
 	option := Some(12)
 	if option.IsNone() {
