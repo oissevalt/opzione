@@ -84,13 +84,7 @@ func (o *Option[T]) Unwrap() T {
 // value is valid is not guaranteed; if the optional previously contains no
 // meaningful value, it can be the zero value of the type, or nil.
 func (o *Option[T]) Swap(v T) (t T) {
-	if !o.IsNone() {
-		t = *o.v
-	}
-	// The value is accepted anyway, in case of pointer loss.
-	//  var v importantNilType
-	//  p := &v
-	//  opt.Swap(p) // not good to lose reference to v
+	t = *o.v
 	o.v = &v
 	return
 }
@@ -98,7 +92,8 @@ func (o *Option[T]) Swap(v T) (t T) {
 // Take moves the inner value out, leaving the optional in a "none" state such
 // that subsequent calls to IsNone returns true. It returns a reference to the
 // contained value, if any. Should the optional previously contains no meaningful
-// value, ErrNoneOptional is returned.
+// value, ErrNoneOptional is returned; to forcibly move out an invalid pointer
+// or value, consider calling Swap with nil.
 func (o *Option[T]) Take() (*T, error) {
 	if o.IsNone() {
 		return nil, ErrNoneOptional
